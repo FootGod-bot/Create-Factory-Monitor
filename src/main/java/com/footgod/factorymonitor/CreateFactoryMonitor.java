@@ -3,6 +3,7 @@ package com.footgod.factorymonitor;
 import com.footgod.factorymonitor.compat.OptionalMods;
 import com.footgod.factorymonitor.registry.ModBlockEntities;
 import com.footgod.factorymonitor.registry.ModBlocks;
+import com.footgod.factorymonitor.registry.ModDisplaySources;
 import com.footgod.factorymonitor.registry.ModItems;
 
 import net.minecraft.core.registries.Registries;
@@ -45,8 +46,14 @@ public class CreateFactoryMonitor {
     ) {
 
         ModBlocks.register(modEventBus);
+
         ModItems.register(modEventBus);
+
         ModBlockEntities.register(modEventBus);
+
+        ModDisplaySources.register(
+                modEventBus
+        );
 
         modEventBus.addListener(
                 this::addCreativeItems
