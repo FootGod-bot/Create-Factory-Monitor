@@ -19,7 +19,21 @@ sourceSets.main.resources {
 }
 
 repositories {
+    maven {
+        url = "https://maven.createmod.net"
+    }
 }
+
+    dependencies {
+        implementation("com.simibubi.create:create-1.21.1:6.0.10-281") {
+            transitive = false
+        }
+
+        implementation("net.createmod.ponder:ponder-neoforge:1.0.82+mc1.21.1") {
+            transitive = false
+        }
+    }
+
 
 base {
     archivesName = mod_id
@@ -73,9 +87,6 @@ neoForge {
 
 configurations {
     runtimeClasspath.extendsFrom localRuntime
-}
-
-dependencies {
 }
 
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
