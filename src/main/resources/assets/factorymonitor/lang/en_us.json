@@ -1,4 +1,6 @@
 {
   "block.factorymonitor.factory_monitor": "Factory Monitor",
-  "item.factorymonitor.factory_monitor": "Factory Monitor"
+  "item.factorymonitor.factory_monitor": "Factory Monitor",
+  "factorymonitor.filter": "Factory Monitor Filter",
+  "factorymonitor.mode": "Factory Monitor Mode"
 }
