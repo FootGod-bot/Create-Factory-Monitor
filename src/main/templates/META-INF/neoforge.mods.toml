@@ -47,6 +47,13 @@ ordering="AFTER"
 side="BOTH"
 
 [[dependencies.${mod_id}]]
+modId="ponder"
+type="required"
+versionRange="[1.0.82,)"
+ordering="AFTER"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
 modId="create_new_age"
 type="optional"
 ordering="NONE"

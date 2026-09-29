@@ -15,6 +15,7 @@ import com.simibubi.create.content.logistics.packagerLink.LogisticallyLinkedBeha
 import com.simibubi.create.content.logistics.packagerLink.LogisticsManager;
 import com.simibubi.create.content.logistics.packagerLink.RequestPromise;
 import com.simibubi.create.content.logistics.packagerLink.RequestPromiseQueue;
+import com.simibubi.create.content.redstone.thresholdSwitch.ThresholdSwitchObservable;
 import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
 import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
 import com.simibubi.create.foundation.blockEntity.behaviour.ValueBoxTransform;
@@ -28,13 +29,15 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 import net.neoforged.neoforge.items.IItemHandler;
 
-public class FactoryMonitorBlockEntity extends SmartBlockEntity {
+public class FactoryMonitorBlockEntity extends SmartBlockEntity
+        implements ThresholdSwitchObservable {
 
     public enum MonitorMode {
         STORED,
@@ -233,6 +236,58 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity {
         if (level != null && !level.isClientSide) {
             sendData();
         }
+    }
+
+    /*
+     * ============================================================
+     * Create Threshold Switch integration
+     * ============================================================
+     *
+     * The Threshold Switch gets three independent values:
+     *
+     *   Minimum  = 0
+     *   Current  = actual amount exposed by this monitor
+     *   Maximum  = Integer.MAX_VALUE - 1
+     *
+     * This intentionally does NOT use the IItemHandler's slot
+     * capacity. That prevents Create from calculating a small or
+     * zero maximum based on the virtual inventory slots.
+     */
+
+    @Override
+    public int getMinValue() {
+        return 0;
+    }
+
+    @Override
+    public int getCurrentValue() {
+
+        long total = 0;
+
+        for (ItemStack stack : getExposedItems()) {
+
+            if (stack.isEmpty() || stack.getCount() <= 0) {
+                continue;
+            }
+
+            total += stack.getCount();
+
+            if (total >= Integer.MAX_VALUE - 1) {
+                return Integer.MAX_VALUE - 1;
+            }
+        }
+
+        return (int) total;
+    }
+
+    @Override
+    public int getMaxValue() {
+        return Integer.MAX_VALUE - 1;
+    }
+
+    @Override
+    public MutableComponent format(int value) {
+        return Component.literal(Integer.toString(value));
     }
 
     public IItemHandler getItemHandler() {
@@ -755,7 +810,6 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity {
 
         @Override
         protected Vec3 getSouthLocation() {
-
             return VecHelper.voxelSpace(
                     8f,
                     8f,

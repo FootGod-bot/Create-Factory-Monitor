@@ -82,7 +82,7 @@ jobs:
 
           gh release create "$VERSION" \
             "$JAR" \
-            --title "Create: Numismatics Plus $VERSION" \
+            --title "Create: Factory Monitor $VERSION" \
             --generate-notes
 
       - name: Update existing release
