@@ -6,6 +6,7 @@ import java.util.List;
 import com.footgod.factorymonitor.logistics.FactoryMonitorPromiseTracker;
 import com.footgod.factorymonitor.registry.ModBlockEntities;
 
+import com.google.common.collect.ImmutableList;
 import com.simibubi.create.Create;
 import com.simibubi.create.content.logistics.BigItemStack;
 import com.simibubi.create.content.logistics.box.PackageItem;
@@ -19,6 +20,8 @@ import com.simibubi.create.content.redstone.thresholdSwitch.ThresholdSwitchObser
 import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
 import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
 import com.simibubi.create.foundation.blockEntity.behaviour.ValueBoxTransform;
+import com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsBoard;
+import com.simibubi.create.foundation.blockEntity.behaviour.ValueSettingsFormatter;
 import com.simibubi.create.foundation.blockEntity.behaviour.filtering.FilteringBehaviour;
 import com.simibubi.create.foundation.blockEntity.behaviour.scrollValue.ScrollValueBehaviour;
 
@@ -109,16 +112,15 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
     private ScrollValueBehaviour createModeSlider(Direction side) {
 
         ScrollValueBehaviour behaviour =
-                new ScrollValueBehaviour(
-                        Component.translatable("factorymonitor.mode"),
+                new MonitorModeScrollValueBehaviour(
                         this,
-                        new MonitorModeSlot(side)
+                        side
                 )
                         .between(
                                 0,
                                 MonitorMode.values().length - 1
                         )
-                        .withFormatter(this::formatMode);
+                        .withFormatter(FactoryMonitorBlockEntity::formatMode);
 
         behaviour.withCallback(value -> {
 
@@ -190,13 +192,24 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         }
     }
 
-    private String formatMode(int value) {
+    private static String formatMode(int value) {
 
         return switch (value) {
-            case 0 -> "Stored";
-            case 1 -> "Promised";
-            case 2 -> "Total";
-            default -> "Stored";
+            case 0 -> Component.translatable(
+                    "factorymonitor.mode.stored"
+            ).getString();
+
+            case 1 -> Component.translatable(
+                    "factorymonitor.mode.promised"
+            ).getString();
+
+            case 2 -> Component.translatable(
+                    "factorymonitor.mode.total"
+            ).getString();
+
+            default -> Component.translatable(
+                    "factorymonitor.mode.stored"
+            ).getString();
         };
     }
 
@@ -768,6 +781,64 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 ItemStack stack
         ) {
             return false;
+        }
+    }
+
+    private static class MonitorModeScrollValueBehaviour
+            extends ScrollValueBehaviour {
+
+        private MonitorModeScrollValueBehaviour(
+                FactoryMonitorBlockEntity monitor,
+                Direction side
+        ) {
+            super(
+                    Component.translatable("factorymonitor.mode"),
+                    monitor,
+                    new MonitorModeSlot(side)
+            );
+        }
+
+        @Override
+        public ValueSettingsBoard createBoard(
+                net.minecraft.world.entity.player.Player player,
+                net.minecraft.world.phys.BlockHitResult hitResult
+        ) {
+
+            return new ValueSettingsBoard(
+                    this.label,
+                    MonitorMode.values().length - 1,
+                    1,
+                    ImmutableList.of(
+                            Component.translatable("factorymonitor.mode")
+                    ),
+                    new ValueSettingsFormatter(
+                            this::formatValue
+                    )
+            );
+        }
+
+        public MutableComponent formatValue(
+                ValueSettings settings
+        ) {
+
+            return Component.translatable(
+                    switch (settings.value()) {
+                        case 0 -> "factorymonitor.mode.stored";
+                        case 1 -> "factorymonitor.mode.promised";
+                        case 2 -> "factorymonitor.mode.total";
+                        default -> "factorymonitor.mode.stored";
+                    }
+            );
+        }
+
+        private String formatMode(int value) {
+
+            return switch (value) {
+                case 0 -> "Stored";
+                case 1 -> "Promised";
+                case 2 -> "Total";
+                default -> "Stored";
+            };
         }
     }
 
