@@ -56,11 +56,11 @@ side="BOTH"
 [[dependencies.${mod_id}]]
 modId="create_new_age"
 type="optional"
-ordering="NONE"
+ordering="AFTER"
 side="BOTH"
 
 [[dependencies.${mod_id}]]
 modId="createaddition"
 type="optional"
-ordering="NONE"
+ordering="AFTER"
 side="BOTH"

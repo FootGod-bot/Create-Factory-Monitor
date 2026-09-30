@@ -63,9 +63,13 @@ public class CreateFactoryMonitor {
                 this::registerCapabilities
         );
 
-//        CreateFactoryMonitorConfig.register(
-////                modContainer
-////        );
+        // Register the config and wire up the loading event listener
+        CreateFactoryMonitorConfig.register(
+                modContainer
+        );
+        modEventBus.addListener(
+                CreateFactoryMonitorConfig::onConfigLoad
+        );
 
         boolean newAge =
                 OptionalMods.isNewAgeLoaded();
