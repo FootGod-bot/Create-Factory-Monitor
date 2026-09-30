@@ -65,25 +65,29 @@ jobs:
           JAR: ${{ steps.jar.outputs.jar }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          METADATA=$(jq -n \
+          METADATA=$(jq -cn \
             --arg version "$VERSION" \
             '{
               changelog: "Automated release.",
-              changelogType: "text",
               displayName: $version,
-              gameVersionNames: ["1.21.1"],
+              gameVersionNames: ["1.21.1", "NeoForge"],
               releaseType: "release",
               isMarkedForManualRelease: true
             }')
 
-          RESPONSE=$(curl --fail-with-body -sS \
+          echo "Uploading $JAR to CurseForge..."
+          echo "Metadata: $METADATA"
+
+          curl --fail-with-body -sS \
             -X POST \
             "https://minecraft.curseforge.com/api/projects/$CURSEFORGE_PROJECT_ID/upload-file" \
             -H "X-Api-Token: $CURSEFORGE_API_TOKEN" \
             -F "metadata=$METADATA" \
-            -F "file=@$JAR;type=application/java-archive")
+            -F "file=@$JAR"
 
-          echo "$RESPONSE"
+          echo "CurseForge file uploaded."
+          echo "It is marked for manual release."
+          echo "It will NOT automatically become public."
 
           echo "CurseForge file uploaded."
           echo "It is marked for manual release."
