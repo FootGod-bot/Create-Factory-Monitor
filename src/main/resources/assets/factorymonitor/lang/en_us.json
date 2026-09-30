@@ -1,0 +1,11 @@
+{
+  "block.factorymonitor.factory_monitor": "Factory Monitor",
+  "item.factorymonitor.factory_monitor": "Factory Monitor",
+  "factorymonitor.filter": "Filter",
+  "factorymonitor.display_source.factory_monitor": "Factory Monitor Values",
+  "factorymonitor.mode.stored": "Stored",
+  "factorymonitor.mode.promised": "Promised",
+  "factorymonitor.mode.total": "Total",
+  "factorymonitor.mode": "Mode"
+
+}

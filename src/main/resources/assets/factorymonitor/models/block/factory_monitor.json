@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "up": "factorymonitor:block/factory_monitor_top",
+    "down": "factorymonitor:block/factory_monitor_bottom",
+    "north": "factorymonitor:block/factory_monitor_side",
+    "south": "factorymonitor:block/factory_monitor_side",
+    "east": "factorymonitor:block/factory_monitor_side",
+    "west": "factorymonitor:block/factory_monitor_side",
+    "particle": "factorymonitor:block/factory_monitor_side"
+  }
+}

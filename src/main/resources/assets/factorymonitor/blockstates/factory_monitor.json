@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "factorymonitor:block/factory_monitor"
+    }
+  }
+}
