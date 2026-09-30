@@ -71,20 +71,20 @@ jobs:
               changelog: "Automated release.",
               changelogType: "text",
               displayName: $version,
-              gameVersions: ["1.21.1"],
+              gameVersionNames: ["1.21.1"],
               releaseType: "release",
               isMarkedForManualRelease: true
             }')
-            
+
           RESPONSE=$(curl --fail-with-body -sS \
             -X POST \
-            "https://api.curseforge.com/v1/mods/$CURSEFORGE_PROJECT_ID/upload-file" \
-            -H "x-api-key: $CURSEFORGE_API_TOKEN" \
+            "https://minecraft.curseforge.com/api/projects/$CURSEFORGE_PROJECT_ID/upload-file" \
+            -H "X-Api-Token: $CURSEFORGE_API_TOKEN" \
             -F "metadata=$METADATA" \
             -F "file=@$JAR;type=application/java-archive")
-           
+
           echo "$RESPONSE"
-            
+
           echo "CurseForge file uploaded."
           echo "It is marked for manual release."
           echo "It will NOT automatically become public."
