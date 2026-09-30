@@ -1,0 +1,90 @@
+name: Release to CurseForge - Delayed
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: ./gradlew build
+
+      - name: Find JAR
+        id: jar
+        shell: bash
+        run: |
+          JAR=$(find build/libs -type f -name '*.jar' \
+            ! -name '*-sources.jar' \
+            ! -name '*-dev.jar' \
+            | head -n 1)
+            
+          if [ -z "$JAR" ]; then
+            echo "No JAR found in build/libs"
+            exit 1
+          fi
+            
+          echo "jar=$JAR" >> "$GITHUB_OUTPUT"
+          echo "Found JAR: $JAR"
+
+      - name: Read mod version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep '^mod_version=' gradle.properties | cut -d'=' -f2)
+           
+          if [ -z "$VERSION" ]; then
+            echo "Could not find mod_version in gradle.properties"
+            exit 1
+          fi
+            
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Upload to CurseForge as manual release
+        shell: bash
+        env:
+          CURSEFORGE_API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          CURSEFORGE_PROJECT_ID: ${{ secrets.CURSEFORGE_PROJECT_ID }}
+          JAR: ${{ steps.jar.outputs.jar }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          METADATA=$(jq -n \
+            --arg version "$VERSION" \
+            '{
+              changelog: "Automated release.",
+              changelogType: "text",
+              displayName: $version,
+              gameVersions: ["1.21.1"],
+              releaseType: "release",
+              isMarkedForManualRelease: true
+            }')
+            
+          RESPONSE=$(curl --fail-with-body -sS \
+            -X POST \
+            "https://api.curseforge.com/v1/mods/$CURSEFORGE_PROJECT_ID/upload-file" \
+            -H "x-api-key: $CURSEFORGE_API_TOKEN" \
+            -F "metadata=$METADATA" \
+            -F "file=@$JAR;type=application/java-archive")
+           
+          echo "$RESPONSE"
+            
+          echo "CurseForge file uploaded."
+          echo "It is marked for manual release."
+          echo "It will NOT automatically become public."

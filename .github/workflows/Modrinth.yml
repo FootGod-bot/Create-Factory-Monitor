@@ -1,0 +1,126 @@
+name: Release to Modrinth
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: ./gradlew build
+
+      - name: Find JAR
+        id: jar
+        shell: bash
+        run: |
+          JAR=$(find build/libs -type f -name '*.jar' \
+            ! -name '*-sources.jar' \
+            ! -name '*-dev.jar' \
+            | head -n 1)
+          
+          if [ -z "$JAR" ]; then
+            echo "No JAR found in build/libs"
+            exit 1
+          fi
+            
+          echo "jar=$JAR" >> "$GITHUB_OUTPUT"
+          echo "Found JAR: $JAR"
+
+      - name: Read mod version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep '^mod_version=' gradle.properties | cut -d'=' -f2)
+          
+          if [ -z "$VERSION" ]; then
+            echo "Could not find mod_version in gradle.properties"
+            exit 1
+          fi
+            
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Upload version to Modrinth
+        id: modrinth
+        shell: bash
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          MODRINTH_PROJECT_ID: ${{ secrets.MODRINTH_PROJECT_ID }}
+          JAR: ${{ steps.jar.outputs.jar }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          DATA=$(jq -n \
+            --arg project "$MODRINTH_PROJECT_ID" \
+            --arg version "$VERSION" \
+            '{
+              name: $version,
+              version_number: $version,
+              version_type: "release",
+              loaders: ["neoforge"],
+              game_versions: ["1.21.1"],
+              project_id: $project,
+              status: "draft",
+              file_parts: ["file"],
+              primary_file: "file",
+              environment: "client_and_server"
+            }')
+           
+          RESPONSE=$(curl --fail-with-body -sS \
+            -X POST \
+            "https://api.modrinth.com/v2/version" \
+            -H "Authorization: $MODRINTH_TOKEN" \
+            -F "data=$DATA" \
+            -F "file=@$JAR;type=application/java-archive")
+          
+          VERSION_ID=$(echo "$RESPONSE" | jq -r '.id')
+          
+          if [ -z "$VERSION_ID" ] || [ "$VERSION_ID" = "null" ]; then
+            echo "Modrinth did not return a version ID:"
+            echo "$RESPONSE"
+            exit 1
+          fi
+          
+          echo "version_id=$VERSION_ID" >> "$GITHUB_OUTPUT"
+          echo "Created Modrinth version: $VERSION_ID"
+
+      - name: Schedule release for 1 year from now
+        shell: bash
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          VERSION_ID: ${{ steps.modrinth.outputs.version_id }}
+        run: |
+          RELEASE_TIME=$(date -u -d '+1 year' '+%Y-%m-%dT%H:%M:%SZ')
+          
+          echo "Release scheduled for: $RELEASE_TIME"
+          
+          curl --fail-with-body -sS \
+            -X POST \
+            "https://api.modrinth.com/v2/version/$VERSION_ID/schedule" \
+            -H "Authorization: $MODRINTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "$(jq -n \
+              --arg time "$RELEASE_TIME" \
+              '{
+                time: $time,
+                requested_status: "approved"
+              }')"
+          
+          echo "Modrinth release successfully scheduled."
+          echo "Release time: $RELEASE_TIME"
