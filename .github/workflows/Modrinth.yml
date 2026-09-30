@@ -1,4 +1,4 @@
-name: Release to Modrinth
+name: Build & Release On Modrinth
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: Build & Release On Github
+name: Build & Release On GitHub
 
 on:
   workflow_dispatch:
@@ -7,23 +7,23 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Setup JDK 21
+      - name: Set up Java
         uses: actions/setup-java@v5
         with:
+          distribution: temurin
           java-version: '21'
-          distribution: 'temurin'
 
-      - name: Setup Gradle
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Read mod version
@@ -31,17 +31,26 @@ jobs:
         shell: bash
         run: |
           VERSION=$(grep '^mod_version=' gradle.properties | cut -d'=' -f2- | tr -d '\r')
+
+          if [ -z "$VERSION" ]; then
+            echo "Could not find mod_version in gradle.properties"
+            exit 1
+          fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Mod version: $VERSION"
 
-      - name: Build with Gradle
+      - name: Build
         run: ./gradlew build
 
       - name: Find JAR
         id: jar
         shell: bash
         run: |
-          JAR=$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' | head -n 1)
+          JAR=$(find build/libs -maxdepth 1 -type f -name '*.jar' \
+            ! -name '*-sources.jar' \
+            ! -name '*-dev.jar' \
+            | head -n 1)
 
           if [ -z "$JAR" ]; then
             echo "No mod JAR found!"

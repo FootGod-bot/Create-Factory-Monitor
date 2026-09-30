@@ -1,4 +1,4 @@
-name: Release to CurseForge - Delayed
+name: Build & Release On CurseForge
 
 on:
   workflow_dispatch:
