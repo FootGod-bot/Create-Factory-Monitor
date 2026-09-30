@@ -70,7 +70,7 @@ jobs:
             '{
               changelog: "Automated release.",
               displayName: $version,
-              gameVersionNames: ["1.21.1", "NeoForge"],
+              gameVersionNames: ["Client", "Server", "1.21.1"],
               releaseType: "release",
               isMarkedForManualRelease: true
             }')
@@ -84,10 +84,6 @@ jobs:
             -H "X-Api-Token: $CURSEFORGE_API_TOKEN" \
             -F "metadata=$METADATA" \
             -F "file=@$JAR"
-
-          echo "CurseForge file uploaded."
-          echo "It is marked for manual release."
-          echo "It will NOT automatically become public."
 
           echo "CurseForge file uploaded."
           echo "It is marked for manual release."
