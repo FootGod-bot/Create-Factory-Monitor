@@ -1,0 +1,16 @@
+projects:
+  - id: 935081
+    sources:
+      - dir: "src/main/resources/assets/factorymonitor/lang"
+        outputDir: "src/main/resources/assets/factorymonitor/lang"
+
+        crowdinPath:
+          dir: "/factorymonitor"
+          filename: "%file_name%%file_extension%"
+
+        exportPattern:
+          dir: "/factorymonitor"
+          filename: "%locale_with_underscore%%file_extension%"
+
+        includes:
+          - pattern: "en_us.json"
