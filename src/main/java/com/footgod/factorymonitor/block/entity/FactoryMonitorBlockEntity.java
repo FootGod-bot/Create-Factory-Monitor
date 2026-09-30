@@ -3,6 +3,8 @@ package com.footgod.factorymonitor.block.entity;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.footgod.factorymonitor.CreateFactoryMonitor;
+import com.footgod.factorymonitor.CreateFactoryMonitorConfig;
 import com.footgod.factorymonitor.logistics.FactoryMonitorPromiseTracker;
 import com.footgod.factorymonitor.registry.ModBlockEntities;
 
@@ -37,8 +39,17 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.energy.EnergyStorage;
+import net.neoforged.neoforge.energy.IEnergyStorage;
 import net.neoforged.neoforge.items.IItemHandler;
 
+@EventBusSubscriber(
+        modid = CreateFactoryMonitor.MOD_ID
+)
 public class FactoryMonitorBlockEntity extends SmartBlockEntity
         implements ThresholdSwitchObservable {
 
@@ -62,46 +73,126 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
     private boolean updatingModeSliders;
 
-    public FactoryMonitorBlockEntity(BlockPos pos, BlockState state) {
-        super(ModBlockEntities.FACTORY_MONITOR.get(), pos, state);
+    /*
+     * ============================================================
+     * FE POWER
+     * ============================================================
+     */
+
+    private final MonitorEnergyStorage energyStorage =
+            new MonitorEnergyStorage(
+                    1000,
+                    100,
+                    100
+            );
+
+    private boolean previousRequireFE;
+
+    /**
+     * Registers ONLY the FE capability.
+     *
+     * The item handler capability is still registered by
+     * CreateFactoryMonitor.java.
+     */
+    @SubscribeEvent
+    public static void registerCapabilities(
+            RegisterCapabilitiesEvent event
+    ) {
+
+        event.registerBlockEntity(
+                Capabilities.EnergyStorage.BLOCK,
+                ModBlockEntities.FACTORY_MONITOR.get(),
+                (monitor, side) -> {
+
+                    /*
+                     * When require_fe is disabled, the Factory Monitor
+                     * does not expose an FE capability at all.
+                     */
+                    if (!CreateFactoryMonitorConfig.REQUIRE_FE.get()) {
+                        return null;
+                    }
+
+                    return monitor.energyStorage;
+                }
+        );
+    }
+
+    public FactoryMonitorBlockEntity(
+            BlockPos pos,
+            BlockState state
+    ) {
+        super(
+                ModBlockEntities.FACTORY_MONITOR.get(),
+                pos,
+                state
+        );
 
         mode = MonitorMode.STORED;
-        itemHandler = new MonitorItemHandler(this);
+
+        itemHandler =
+                new MonitorItemHandler(this);
 
         setLazyTickRate(10);
     }
 
     @Override
-    public void addBehaviours(List<BlockEntityBehaviour> behaviours) {
+    public void addBehaviours(
+            List<BlockEntityBehaviour> behaviours
+    ) {
 
         filtering =
                 new FilteringBehaviour(
                         this,
                         new MonitorFilterSlot()
                 ).withCallback(stack -> {
+
                     itemHandler.invalidate();
 
-                    if (level != null && !level.isClientSide) {
+                    if (level != null &&
+                            !level.isClientSide) {
+
                         setChanged();
                         sendData();
                     }
                 });
 
         filtering.setLabel(
-                Component.translatable("factorymonitor.filter")
+                Component.translatable(
+                        "factorymonitor.filter"
+                )
         );
 
         behaviours.add(filtering);
 
         logisticsBehaviour =
-                new LogisticallyLinkedBehaviour(this, false);
+                new LogisticallyLinkedBehaviour(
+                        this,
+                        false
+                );
 
-        behaviours.add(logisticsBehaviour);
+        behaviours.add(
+                logisticsBehaviour
+        );
 
-        northMode = createModeSlider(Direction.NORTH);
-        southMode = createModeSlider(Direction.SOUTH);
-        eastMode = createModeSlider(Direction.EAST);
-        westMode = createModeSlider(Direction.WEST);
+        northMode =
+                createModeSlider(
+                        Direction.NORTH
+                );
+
+        southMode =
+                createModeSlider(
+                        Direction.SOUTH
+                );
+
+        eastMode =
+                createModeSlider(
+                        Direction.EAST
+                );
+
+        westMode =
+                createModeSlider(
+                        Direction.WEST
+                );
 
         behaviours.add(northMode);
         behaviours.add(southMode);
@@ -109,7 +200,9 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         behaviours.add(westMode);
     }
 
-    private ScrollValueBehaviour createModeSlider(Direction side) {
+    private ScrollValueBehaviour createModeSlider(
+            Direction side
+    ) {
 
         ScrollValueBehaviour behaviour =
                 new MonitorModeScrollValueBehaviour(
@@ -120,35 +213,47 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                                 0,
                                 MonitorMode.values().length - 1
                         )
-                        .withFormatter(FactoryMonitorBlockEntity::formatMode);
+                        .withFormatter(
+                                FactoryMonitorBlockEntity::formatMode
+                        );
 
         behaviour.withCallback(value -> {
 
-            MonitorMode[] modes = MonitorMode.values();
+            MonitorMode[] modes =
+                    MonitorMode.values();
 
-            if (value < 0 || value >= modes.length) {
+            if (value < 0 ||
+                    value >= modes.length) {
                 return;
             }
 
-            MonitorMode newMode = modes[value];
+            MonitorMode newMode =
+                    modes[value];
 
             if (mode == null) {
-                mode = MonitorMode.STORED;
+                mode =
+                        MonitorMode.STORED;
             }
 
             if (mode != newMode) {
-                mode = newMode;
+
+                mode =
+                        newMode;
 
                 itemHandler.invalidate();
 
                 setChanged();
 
-                if (level != null && !level.isClientSide) {
+                if (level != null &&
+                        !level.isClientSide) {
+
                     sendData();
                 }
             }
 
-            syncModeSliders(behaviour);
+            syncModeSliders(
+                    behaviour
+            );
         });
 
         return behaviour;
@@ -169,47 +274,66 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         updatingModeSliders = true;
 
         try {
-            int value = getMode().ordinal();
 
-            if (northMode != null && northMode != source) {
+            int value =
+                    getMode().ordinal();
+
+            if (northMode != null &&
+                    northMode != source) {
+
                 northMode.setValue(value);
             }
 
-            if (southMode != null && southMode != source) {
+            if (southMode != null &&
+                    southMode != source) {
+
                 southMode.setValue(value);
             }
 
-            if (eastMode != null && eastMode != source) {
+            if (eastMode != null &&
+                    eastMode != source) {
+
                 eastMode.setValue(value);
             }
 
-            if (westMode != null && westMode != source) {
+            if (westMode != null &&
+                    westMode != source) {
+
                 westMode.setValue(value);
             }
 
         } finally {
-            updatingModeSliders = false;
+
+            updatingModeSliders =
+                    false;
         }
     }
 
-    private static String formatMode(int value) {
+    private static String formatMode(
+            int value
+    ) {
 
         return switch (value) {
-            case 0 -> Component.translatable(
-                    "factorymonitor.mode.stored"
-            ).getString();
 
-            case 1 -> Component.translatable(
-                    "factorymonitor.mode.promised"
-            ).getString();
+            case 0 ->
+                    Component.translatable(
+                            "factorymonitor.mode.stored"
+                    ).getString();
 
-            case 2 -> Component.translatable(
-                    "factorymonitor.mode.total"
-            ).getString();
+            case 1 ->
+                    Component.translatable(
+                            "factorymonitor.mode.promised"
+                    ).getString();
 
-            default -> Component.translatable(
-                    "factorymonitor.mode.stored"
-            ).getString();
+            case 2 ->
+                    Component.translatable(
+                            "factorymonitor.mode.total"
+                    ).getString();
+
+            default ->
+                    Component.translatable(
+                            "factorymonitor.mode.stored"
+                    ).getString();
         };
     }
 
@@ -222,15 +346,19 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
     }
 
     public MonitorMode getMode() {
+
         return mode == null
                 ? MonitorMode.STORED
                 : mode;
     }
 
-    public void setMode(MonitorMode newMode) {
+    public void setMode(
+            MonitorMode newMode
+    ) {
 
         if (newMode == null) {
-            newMode = MonitorMode.STORED;
+            newMode =
+                    MonitorMode.STORED;
         }
 
         if (mode == newMode) {
@@ -238,7 +366,8 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             return;
         }
 
-        mode = newMode;
+        mode =
+                newMode;
 
         itemHandler.invalidate();
 
@@ -246,8 +375,125 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
         setChanged();
 
-        if (level != null && !level.isClientSide) {
+        if (level != null &&
+                !level.isClientSide) {
+
             sendData();
+        }
+    }
+
+    /*
+     * ============================================================
+     * FE POWER HELPERS
+     * ============================================================
+     */
+
+    private boolean requiresFE() {
+        return CreateFactoryMonitorConfig.REQUIRE_FE.get();
+    }
+
+    /**
+     * Returns true when the monitor is allowed to provide data.
+     *
+     * If FE is disabled in the config, the monitor always works.
+     *
+     * If FE is enabled, it must have enough FE for the next tick.
+     */
+    private boolean hasPower() {
+
+        if (!requiresFE()) {
+            return true;
+        }
+
+        int cost =
+                CreateFactoryMonitorConfig.FE_PER_TICK.get();
+
+        if (cost <= 0) {
+            return true;
+        }
+
+        return energyStorage.getEnergyStored() >= cost;
+    }
+
+    /**
+     * Consumes FE for one active tick.
+     */
+    private void consumePower() {
+
+        if (!requiresFE()) {
+            return;
+        }
+
+        int cost =
+                CreateFactoryMonitorConfig.FE_PER_TICK.get();
+
+        if (cost <= 0) {
+            return;
+        }
+
+        if (energyStorage.getEnergyStored() >= cost) {
+
+            energyStorage.extractEnergy(
+                    cost,
+                    false
+            );
+        }
+    }
+
+    public IEnergyStorage getEnergyStorage() {
+
+        if (!requiresFE()) {
+            return null;
+        }
+
+        return energyStorage;
+    }
+
+    @Override
+    public void tick() {
+
+        super.tick();
+
+        if (level == null) {
+            return;
+        }
+
+        boolean requireFE =
+                requiresFE();
+
+        /*
+         * If the config changes while the world is running,
+         * invalidate the capabilities and virtual inventory.
+         */
+        if (previousRequireFE != requireFE) {
+
+            previousRequireFE =
+                    requireFE;
+
+            level.invalidateCapabilities(
+                    worldPosition
+            );
+
+            itemHandler.invalidate();
+
+            if (!level.isClientSide) {
+                sendData();
+            }
+        }
+
+        if (level.isClientSide) {
+            return;
+        }
+
+        /*
+         * Only consume FE when the monitor actually requires it.
+         */
+        if (requireFE &&
+                hasPower()) {
+
+            consumePower();
+
+            itemHandler.invalidate();
         }
     }
 
@@ -255,37 +501,45 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
      * ============================================================
      * Create Threshold Switch integration
      * ============================================================
-     *
-     * The Threshold Switch gets three independent values:
-     *
-     *   Minimum  = 0
-     *   Current  = actual amount exposed by this monitor
-     *   Maximum  = Integer.MAX_VALUE - 1
-     *
-     * This intentionally does NOT use the IItemHandler's slot
-     * capacity. That prevents Create from calculating a small or
-     * zero maximum based on the virtual inventory slots.
      */
 
     @Override
     public int getMinValue() {
+
+        if (!hasPower()) {
+            return 0;
+        }
+
         return 0;
     }
 
     @Override
     public int getCurrentValue() {
 
+        /*
+         * No FE = no monitor data.
+         */
+        if (!hasPower()) {
+            return 0;
+        }
+
         long total = 0;
 
-        for (ItemStack stack : getExposedItems()) {
+        for (ItemStack stack :
+                getExposedItems()) {
 
-            if (stack.isEmpty() || stack.getCount() <= 0) {
+            if (stack.isEmpty() ||
+                    stack.getCount() <= 0) {
+
                 continue;
             }
 
-            total += stack.getCount();
+            total +=
+                    stack.getCount();
 
-            if (total >= Integer.MAX_VALUE - 1) {
+            if (total >=
+                    Integer.MAX_VALUE - 1) {
+
                 return Integer.MAX_VALUE - 1;
             }
         }
@@ -295,12 +549,25 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
     @Override
     public int getMaxValue() {
+
+        /*
+         * No FE = 0 max.
+         */
+        if (!hasPower()) {
+            return 0;
+        }
+
         return Integer.MAX_VALUE - 1;
     }
 
     @Override
-    public MutableComponent format(int value) {
-        return Component.literal(Integer.toString(value));
+    public MutableComponent format(
+            int value
+    ) {
+
+        return Component.literal(
+                Integer.toString(value)
+        );
     }
 
     public IItemHandler getItemHandler() {
@@ -308,6 +575,13 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
     }
 
     public InventorySummary getRecentNetworkSummary() {
+
+        /*
+         * No FE = no Display Link data.
+         */
+        if (!hasPower()) {
+            return InventorySummary.EMPTY;
+        }
 
         if (logisticsBehaviour == null) {
             return InventorySummary.EMPTY;
@@ -321,6 +595,13 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
     public InventorySummary getAccurateNetworkSummary() {
 
+        /*
+         * No FE = no Display Link data.
+         */
+        if (!hasPower()) {
+            return InventorySummary.EMPTY;
+        }
+
         if (logisticsBehaviour == null) {
             return InventorySummary.EMPTY;
         }
@@ -333,6 +614,10 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
     private RequestPromiseQueue getPromiseQueue() {
 
+        if (!hasPower()) {
+            return null;
+        }
+
         if (logisticsBehaviour == null) {
             return null;
         }
@@ -342,23 +627,21 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         );
     }
 
-    /**
-     * Adds a promised item to the summary.
-     *
-     * Package Filters are handled separately because the actual
-     * destination belongs to the RequestPromise's Factory Panel
-     * request rather than the promised ItemStack itself.
-     */
     private void addPromisedItem(
             InventorySummary destination,
             RequestPromise promise
     ) {
+
+        if (!hasPower()) {
+            return;
+        }
 
         if (promise == null ||
                 promise.promisedStack == null ||
                 promise.promisedStack.stack == null ||
                 promise.promisedStack.stack.isEmpty() ||
                 promise.promisedStack.count <= 0) {
+
             return;
         }
 
@@ -372,17 +655,13 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         );
     }
 
-    /**
-     * Applies the Factory Monitor's top filter.
-     *
-     * Normal Create filters operate on the promised item.
-     *
-     * A Package Filter instead operates on the destination
-     * address captured from the exact RequestPromise.
-     */
     private boolean passesFilter(
             RequestPromise promise
     ) {
+
+        if (!hasPower()) {
+            return false;
+        }
 
         if (filtering == null) {
             return true;
@@ -393,16 +672,23 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
         if (filterStack == null ||
                 filterStack.isEmpty()) {
+
             return true;
         }
 
-        if (filterStack.getItem() instanceof PackageFilterItem) {
+        if (filterStack.getItem()
+                instanceof PackageFilterItem) {
 
             String wantedAddress =
-                    PackageItem.getAddress(filterStack);
+                    PackageItem.getAddress(
+                            filterStack
+                    );
 
             String promisedAddress =
-                    FactoryMonitorPromiseTracker.getAddress(promise);
+                    FactoryMonitorPromiseTracker
+                            .getAddress(
+                                    promise
+                            );
 
             return PackageItem.matchAddress(
                     promisedAddress,
@@ -415,14 +701,14 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         );
     }
 
-    /**
-     * Builds the promised inventory while preserving the
-     * destination associated with each RequestPromise.
-     */
     private InventorySummary getPromisedNetworkSummary() {
 
         InventorySummary summary =
                 new InventorySummary();
+
+        if (!hasPower()) {
+            return summary;
+        }
 
         RequestPromiseQueue promises =
                 getPromiseQueue();
@@ -443,10 +729,14 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         return summary;
     }
 
-    /**
-     * Builds the complete inventory exposed to Threshold Switch.
-     */
     public List<ItemStack> getExposedItems() {
+
+        /*
+         * This is the main protection for the virtual inventory.
+         */
+        if (!hasPower()) {
+            return List.of();
+        }
 
         InventorySummary stored =
                 getAccurateNetworkSummary();
@@ -460,6 +750,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         switch (getMode()) {
 
             case STORED -> {
+
                 addFilteredSummary(
                         exposed,
                         stored
@@ -467,11 +758,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             }
 
             case PROMISED -> {
-                /*
-                 * Promised was already filtered while reading
-                 * RequestPromise objects so Package Filters can
-                 * inspect their destinations.
-                 */
+
                 addSummary(
                         exposed,
                         promised
@@ -479,6 +766,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             }
 
             case TOTAL -> {
+
                 addFilteredSummary(
                         exposed,
                         stored
@@ -499,6 +787,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
             if (entry.stack.isEmpty() ||
                     entry.count <= 0) {
+
                 continue;
             }
 
@@ -539,7 +828,9 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             InventorySummary source
     ) {
 
-        if (source == null || source.isEmpty()) {
+        if (source == null ||
+                source.isEmpty()) {
+
             return;
         }
 
@@ -548,6 +839,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
             if (entry.stack.isEmpty() ||
                     entry.count <= 0) {
+
                 continue;
             }
 
@@ -563,14 +855,12 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             InventorySummary source
     ) {
 
-        if (source == null || source.isEmpty()) {
+        if (source == null ||
+                source.isEmpty()) {
+
             return;
         }
 
-        /*
-         * Package Filters have no meaning for stored inventory,
-         * because there is no destination-bearing package there.
-         */
         if (isPackageFilter()) {
             return;
         }
@@ -585,6 +875,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             if (filtering != null &&
                     !filtering.getFilter().isEmpty() &&
                     !filtering.test(entry.stack)) {
+
                 continue;
             }
 
@@ -606,7 +897,8 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
         return filterStack != null &&
                 !filterStack.isEmpty() &&
-                filterStack.getItem() instanceof PackageFilterItem;
+                filterStack.getItem()
+                        instanceof PackageFilterItem;
     }
 
     @Override
@@ -616,6 +908,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
         if (level == null ||
                 level.isClientSide) {
+
             return;
         }
 
@@ -641,6 +934,15 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 "Mode",
                 getMode().name()
         );
+
+        /*
+         * Save FE so the monitor doesn't lose its stored power
+         * when the chunk unloads.
+         */
+        tag.putInt(
+                "Energy",
+                energyStorage.getEnergyStored()
+        );
     }
 
     @Override
@@ -660,8 +962,11 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 tag.getString("Mode");
 
         try {
+
             mode =
-                    MonitorMode.valueOf(modeName);
+                    MonitorMode.valueOf(
+                            modeName
+                    );
 
         } catch (IllegalArgumentException exception) {
 
@@ -673,6 +978,10 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             mode =
                     MonitorMode.STORED;
         }
+
+        energyStorage.setEnergy(
+                tag.getInt("Energy")
+        );
 
         itemHandler.invalidate();
 
@@ -695,12 +1004,27 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         private MonitorItemHandler(
                 FactoryMonitorBlockEntity monitor
         ) {
-            this.monitor = monitor;
+            this.monitor =
+                    monitor;
         }
 
         private void refresh() {
 
             if (!dirty) {
+                return;
+            }
+
+            /*
+             * No FE = zero virtual inventory.
+             */
+            if (!monitor.hasPower()) {
+
+                snapshot =
+                        List.of();
+
+                dirty =
+                        false;
+
                 return;
             }
 
@@ -732,6 +1056,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
             if (slot < 0 ||
                     slot >= snapshot.size()) {
+
                 return ItemStack.EMPTY;
             }
 
@@ -767,6 +1092,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
             if (slot < 0 ||
                     slot >= snapshot.size()) {
+
                 return 0;
             }
 
@@ -784,6 +1110,78 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         }
     }
 
+    /**
+     * Custom EnergyStorage so NBT loading can restore FE directly.
+     */
+    private static class MonitorEnergyStorage
+            extends EnergyStorage {
+
+        private MonitorEnergyStorage(
+                int capacity,
+                int maxReceive,
+                int maxExtract
+        ) {
+            super(
+                    capacity,
+                    maxReceive,
+                    maxExtract
+            );
+        }
+
+        @Override
+        public int receiveEnergy(
+                int toReceive,
+                boolean simulate
+        ) {
+
+            /*
+             * Absolutely refuse FE when require_fe is disabled.
+             */
+            if (!CreateFactoryMonitorConfig
+                    .REQUIRE_FE
+                    .get()) {
+
+                return 0;
+            }
+
+            return super.receiveEnergy(
+                    toReceive,
+                    simulate
+            );
+        }
+
+        @Override
+        public int extractEnergy(
+                int toExtract,
+                boolean simulate
+        ) {
+
+            if (!CreateFactoryMonitorConfig
+                    .REQUIRE_FE
+                    .get()) {
+
+                return 0;
+            }
+
+            return super.extractEnergy(
+                    toExtract,
+                    simulate
+            );
+        }
+
+        private void setEnergy(int energy) {
+
+            this.energy =
+                    Math.max(
+                            0,
+                            Math.min(
+                                    energy,
+                                    capacity
+                            )
+                    );
+        }
+    }
+
     private static class MonitorModeScrollValueBehaviour
             extends ScrollValueBehaviour {
 
@@ -791,8 +1189,11 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 FactoryMonitorBlockEntity monitor,
                 Direction side
         ) {
+
             super(
-                    Component.translatable("factorymonitor.mode"),
+                    Component.translatable(
+                            "factorymonitor.mode"
+                    ),
                     monitor,
                     new MonitorModeSlot(side)
             );
@@ -809,7 +1210,9 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                     MonitorMode.values().length - 1,
                     1,
                     ImmutableList.of(
-                            Component.translatable("factorymonitor.mode")
+                            Component.translatable(
+                                    "factorymonitor.mode"
+                            )
                     ),
                     new ValueSettingsFormatter(
                             this::formatValue
@@ -823,17 +1226,28 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
             return Component.translatable(
                     switch (settings.value()) {
-                        case 0 -> "factorymonitor.mode.stored";
-                        case 1 -> "factorymonitor.mode.promised";
-                        case 2 -> "factorymonitor.mode.total";
-                        default -> "factorymonitor.mode.stored";
+
+                        case 0 ->
+                                "factorymonitor.mode.stored";
+
+                        case 1 ->
+                                "factorymonitor.mode.promised";
+
+                        case 2 ->
+                                "factorymonitor.mode.total";
+
+                        default ->
+                                "factorymonitor.mode.stored";
                     }
             );
         }
 
-        private String formatMode(int value) {
+        private String formatMode(
+                int value
+        ) {
 
             return switch (value) {
+
                 case 0 -> "Stored";
                 case 1 -> "Promised";
                 case 2 -> "Total";
@@ -881,6 +1295,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
         @Override
         protected Vec3 getSouthLocation() {
+
             return VecHelper.voxelSpace(
                     8f,
                     8f,

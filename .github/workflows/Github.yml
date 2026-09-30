@@ -1,12 +1,7 @@
-name: Build & Release
+name: Build & Release On Github
 
 on:
-  push:
-    branches:
-      - Main
-  pull_request:
-    branches:
-      - Main
+  workflow_dispatch:
 
 permissions:
   contents: write

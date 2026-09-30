@@ -78,14 +78,13 @@ repositories {
 }
 
     dependencies {
-        implementation("com.simibubi.create:create-1.21.1:6.0.10-281") {
+        implementation("com.simibubi.create:create-1.21.1:${create_version}") {
             transitive = false
         }
 
-        implementation("net.createmod.ponder:ponder-neoforge:1.0.82+mc1.21.1") {
+        implementation("net.createmod.ponder:ponder-neoforge:${ponder_version}") {
             transitive = false
         }
-
     }
 
 
