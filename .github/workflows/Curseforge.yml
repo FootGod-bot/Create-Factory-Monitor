@@ -46,7 +46,7 @@ jobs:
           VERSION=$(grep '^mod_version=' gradle.properties | cut -d'=' -f2- | tr -d '\r')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Publish to CurseForge
+      - name: Publish to CurseForge (Hidden)
         env:
           CF_API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
           PROJECT_ID: ${{ secrets.CURSEFORGE_PROJECT_ID }}
@@ -56,8 +56,10 @@ jobs:
         run: |
           echo "Fetching version IDs from CurseForge API..."
           
+          # Fetch all versions from CurseForge API
           VERSIONS_JSON=$(curl -s -H "X-Api-Token: $CF_API_TOKEN" "https://minecraft.curseforge.com/api/game/versions")
           
+          # Safely parse the exact ID for Minecraft 1.21.1 and NeoForge
           MC_VERSION_ID=$(echo "$VERSIONS_JSON" | jq '[.[] | select(.name == "1.21.1")] | .[0].id')
           LOADER_VERSION_ID=$(echo "$VERSIONS_JSON" | jq '[.[] | select(.name == "NeoForge")] | .[0].id')
 
@@ -69,7 +71,7 @@ jobs:
             exit 1
           fi
 
-          # isMarkedForManualRelease: true ensures the file stays hidden/unpublished after passing moderation
+          # Construct metadata with isMarkedForManualRelease: true to keep it hidden/unpublished
           METADATA=$(jq -n \
             --arg changelog "Release version $VERSION" \
             --argjson mc "$MC_VERSION_ID" \
@@ -83,7 +85,7 @@ jobs:
               isMarkedForManualRelease: true
             }')
 
-          echo "Uploading $JAR_PATH to CurseForge project $PROJECT_ID as hidden/manual release..."
+          echo "Uploading $JAR_PATH to CurseForge project $PROJECT_ID as hidden..."
 
           response=$(curl -s -X POST \
             -H "X-Api-Token: $CF_API_TOKEN" \
@@ -94,7 +96,7 @@ jobs:
           echo "Response: $response"
           
           if echo "$response" | grep -q "id"; then
-            echo "Successfully uploaded to CurseForge!"
+            echo "Successfully uploaded to CurseForge as a hidden manual release!"
           else
             echo "Failed to upload to CurseForge."
             exit 1
