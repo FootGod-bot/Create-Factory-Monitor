@@ -62,7 +62,7 @@ jobs:
             "changelog": "Release version $VERSION",
             "changelogType": "text",
             "releaseType": "release",
-            "gameVersions": [432], 
+            "gameVersions": [1.21.1], 
             "loaders": ["neoforge"]
           }'
 
