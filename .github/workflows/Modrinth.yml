@@ -46,14 +46,28 @@ jobs:
 
           echo "jar=$JAR" >> "$GITHUB_OUTPUT"
 
-      - name: Publish to Modrinth
+      - name: Get Future Date (1 Year Ahead)
+        id: date
+        shell: bash
+        run: |
+          # Generates an ISO 8601 timestamp exactly 1 year from now
+          FUTURE_DATE=$(date -u -d "+1 year" +"%Y-%m-%dT%H:%M:%SZ")
+          echo "future_date=$FUTURE_DATE" >> "$GITHUB_OUTPUT"
+          echo "Scheduled for: $FUTURE_DATE"
+
+      - name: Publish to Modrinth (Scheduled)
         uses: cloudnode-pro/modrinth-publish@v2
         with:
           token: ${{ secrets.MODRINTH_TOKEN }}
           project: ${{ secrets.MODRINTH_PROJECT_ID }}
           version: ${{ steps.version.outputs.version }}
+          name: "Release ${{ steps.version.outputs.version }}"
           files: ${{ steps.jar.outputs.jar }}
           loaders: |
             neoforge
           game-versions: |
             1.21.1
+          visibility: scheduled
+          featured: false
+          # Sets release date 1 year into the future
+          date-published: ${{ steps.date.outputs.future_date }}
