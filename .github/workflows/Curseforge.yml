@@ -54,7 +54,7 @@ jobs:
           game_endpoint: minecraft
           file_path: ${{ steps.jar.outputs.jar }}
           release_type: release
-          # Namespaced correctly to prevent ID mismatch errors
-          game_versions: "Minecraft 1.21.1:1.21.1, NeoForge"
+          # Clean version strings that match CurseForge's database entries directly
+          game_versions: "1.21.1, NeoForge"
           changelog: "Release version ${{ steps.version.outputs.version }}"
           changelog_type: text
