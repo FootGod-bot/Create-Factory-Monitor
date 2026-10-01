@@ -3,7 +3,9 @@ plugins {
     id 'maven-publish'
     id 'net.neoforged.moddev' version '2.0.147'
     id 'idea'
+
     id 'org.zaproxy.crowdin' version '0.6.0'
+    id 'me.modmuss50.mod-publish-plugin' version '2.1.1'
 }
 
 crowdin {
@@ -182,5 +184,134 @@ idea {
     module {
         downloadSources = true
         downloadJavadoc = true
+    }
+}
+// ========================================
+// Release Publishing
+// ========================================
+
+// ----------------------------------------
+// Tokens
+// ----------------------------------------
+
+def cfToken = providers.gradleProperty('cfToken')
+        .orElse(providers.environmentVariable('CURSEFORGE_TOKEN'))
+
+def modToken = providers.gradleProperty('modToken')
+        .orElse(providers.environmentVariable('MODRINTH_TOKEN'))
+
+def githubToken = providers.gradleProperty('githubToken')
+        .orElse(providers.environmentVariable('GITHUB_TOKEN'))
+
+// ----------------------------------------
+// Release configuration
+// ----------------------------------------
+
+def releaseEnvironment = providers.gradleProperty('release_environment')
+        .orElse('both')
+        .get()
+
+def releaseLoader = providers.gradleProperty('release_loader')
+        .orElse('neoforge')
+        .get()
+
+def releaseDisplayName = providers.gradleProperty('release_display_name')
+        .orElse('${mod_id}-${minecraft_version}-${loader}')
+        .get()
+        .replace('${mod_id}', mod_id.toString())
+        .replace('${mod_name}', mod_name.toString())
+        .replace('${mod_version}', mod_version.toString())
+        .replace('${minecraft_version}', minecraft_version.toString())
+        .replace('${loader}', releaseLoader)
+
+// ----------------------------------------
+// JAR filename
+// ----------------------------------------
+
+tasks.jar {
+    archiveFileName = "${releaseDisplayName}.jar"
+}
+
+// ----------------------------------------
+// Changelog
+// ----------------------------------------
+
+def releaseChangelogFile = file("versions/${mod_version}/changelog.md")
+
+if (!releaseChangelogFile.exists()) {
+    releaseChangelogFile.parentFile.mkdirs()
+    releaseChangelogFile.text = "Automatic Release"
+
+    println("Created changelog: ${releaseChangelogFile}")
+}
+
+def releaseChangelog = releaseChangelogFile
+        .getText("UTF-8")
+        .trim()
+
+if (releaseChangelog.isEmpty()) {
+    releaseChangelog = "Automatic Release"
+}
+
+// ----------------------------------------
+// Publishing
+// ----------------------------------------
+
+publishMods {
+    file = tasks.jar.archiveFile
+
+    changelog = releaseChangelog
+
+    type = STABLE
+
+    version = "${mod_version}+mc${minecraft_version}"
+
+    displayName = releaseDisplayName
+
+    modLoaders.add(releaseLoader)
+
+    // ----------------------------------------
+    // CurseForge
+    // ----------------------------------------
+
+    curseforge {
+        accessToken = cfToken
+        projectId = "1721347"
+        minecraftVersions.add(minecraft_version)
+
+        clientRequired = releaseEnvironment == "client" ||
+                releaseEnvironment == "both"
+
+        serverRequired = releaseEnvironment == "server" ||
+                releaseEnvironment == "both"
+    }
+
+    // ----------------------------------------
+    // Modrinth
+    // ----------------------------------------
+
+    modrinth {
+        accessToken = modToken
+        projectId = "iuCAyZjV"
+        minecraftVersions.add(minecraft_version)
+
+        environment = releaseEnvironment == "client"
+                ? CLIENT_ONLY
+                : releaseEnvironment == "server"
+                ? SERVER_ONLY
+                : CLIENT_AND_SERVER
+    }
+
+    // ----------------------------------------
+    // GitHub
+    // ----------------------------------------
+
+    github {
+        accessToken = githubToken
+        repository = "FootGod-bot/Create-Factory-Monitor"
+
+        commitish = "Main"
+
+        tagName = "V${mod_version}"
     }
 }
