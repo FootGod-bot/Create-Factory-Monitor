@@ -54,17 +54,36 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
-          echo "Uploading $JAR_PATH to CurseForge project $PROJECT_ID..."
+          echo "Fetching version IDs from CurseForge API..."
           
-          # 10013 = Minecraft 1.21.1
-          # 11779 = NeoForge (or your specific NeoForge version ID)
-          METADATA='{
-            "changelog": "Release version $VERSION",
-            "changelogType": "text",
-            "releaseType": "release",
-            "gameVersions": [10013, 11779],
-            "loaders": ["neoforge"]
-          }'
+          VERSIONS_JSON=$(curl -s -H "X-Api-Token: $CF_API_TOKEN" "https://minecraft.curseforge.com/api/game/versions")
+          
+          MC_VERSION_ID=$(echo "$VERSIONS_JSON" | jq '[.[] | select(.name == "1.21.1")] | .[0].id')
+          LOADER_VERSION_ID=$(echo "$VERSIONS_JSON" | jq '[.[] | select(.name == "NeoForge")] | .[0].id')
+
+          echo "Found Minecraft 1.21.1 ID: $MC_VERSION_ID"
+          echo "Found NeoForge ID: $LOADER_VERSION_ID"
+
+          if [ "$MC_VERSION_ID" == "null" ] || [ "$LOADER_VERSION_ID" == "null" ]; then
+            echo "Error: Could not resolve version IDs from CurseForge API."
+            exit 1
+          fi
+
+          # isMarkedForManualRelease: true ensures the file stays hidden/unpublished after passing moderation
+          METADATA=$(jq -n \
+            --arg changelog "Release version $VERSION" \
+            --argjson mc "$MC_VERSION_ID" \
+            --argjson loader "$LOADER_VERSION_ID" \
+            '{
+              changelog: $changelog,
+              changelogType: "text",
+              releaseType: "release",
+              gameVersions: [$mc, $loader],
+              loaders: ["neoforge"],
+              isMarkedForManualRelease: true
+            }')
+
+          echo "Uploading $JAR_PATH to CurseForge project $PROJECT_ID as hidden/manual release..."
 
           response=$(curl -s -X POST \
             -H "X-Api-Token: $CF_API_TOKEN" \
