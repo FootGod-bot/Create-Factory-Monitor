@@ -39,11 +39,45 @@ jobs:
 
           echo "jar=$JAR" >> "$GITHUB_OUTPUT"
 
+      - name: Read mod version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep '^mod_version=' gradle.properties | cut -d'=' -f2- | tr -d '\r')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Publish to CurseForge
-        uses: cuchi/curseforge-upload-action@v2.2.0
-        with:
-          token: ${{ secrets.CURSEFORGE_API_TOKEN }}
-          project_id: ${{ secrets.CURSEFORGE_PROJECT_ID }}
-          file_path: ${{ steps.jar.outputs.jar }}
-          game_endpoint: minecraft
-          release_type: release
+        env:
+          CF_API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          PROJECT_ID: ${{ secrets.CURSEFORGE_PROJECT_ID }}
+          JAR_PATH: ${{ steps.jar.outputs.jar }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          echo "Uploading $JAR_PATH to CurseForge project $PROJECT_ID..."
+          
+          # Metadata configuration for CurseForge API
+          # Adjust game versions and loaders to match your project
+          METADATA='{
+            "changelog": "Release version $VERSION",
+            "changelogType": "text",
+            "releaseType": "release",
+            "gameVersions": [432], 
+            "loaders": ["neoforge"]
+          }'
+
+          response=$(curl -s -X POST \
+            -H "X-Api-Token: $CF_API_TOKEN" \
+            -F "metadata=$METADATA;type=application/json" \
+            -F "file=@$JAR_PATH" \
+            "https://minecraft.curseforge.com/api/projects/$PROJECT_ID/upload-file")
+
+          echo "Response: $response"
+          
+          # Simple check to see if the upload was successful
+          if echo "$response" | grep -q "id"; then
+            echo "Successfully uploaded to CurseForge!"
+          else
+            echo "Failed to upload to CurseForge."
+            exit 1
+          fi
