@@ -56,13 +56,13 @@ jobs:
         run: |
           echo "Uploading $JAR_PATH to CurseForge project $PROJECT_ID..."
           
-          # Metadata configuration for CurseForge API
-          # Adjust game versions and loaders to match your project
+          # 10013 = Minecraft 1.21.1
+          # 11779 = NeoForge (or your specific NeoForge version ID)
           METADATA='{
             "changelog": "Release version $VERSION",
             "changelogType": "text",
             "releaseType": "release",
-            "gameVersions": [11779], 
+            "gameVersions": [10013, 11779],
             "loaders": ["neoforge"]
           }'
 
@@ -74,7 +74,6 @@ jobs:
 
           echo "Response: $response"
           
-          # Simple check to see if the upload was successful
           if echo "$response" | grep -q "id"; then
             echo "Successfully uploaded to CurseForge!"
           else
