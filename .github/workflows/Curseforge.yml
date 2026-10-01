@@ -47,57 +47,15 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Publish to CurseForge (Hidden)
-        env:
-          CF_API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
-          PROJECT_ID: ${{ secrets.CURSEFORGE_PROJECT_ID }}
-          JAR_PATH: ${{ steps.jar.outputs.jar }}
-          VERSION: ${{ steps.version.outputs.version }}
-        shell: bash
-        run: |
-          echo "Fetching version IDs from CurseForge API..."
-          
-          # Fetch all versions from CurseForge API
-          VERSIONS_JSON=$(curl -s -H "X-Api-Token: $CF_API_TOKEN" "https://minecraft.curseforge.com/api/game/versions")
-          
-          # Safely parse the exact ID for Minecraft 1.21.1 and NeoForge
-          MC_VERSION_ID=$(echo "$VERSIONS_JSON" | jq '[.[] | select(.name == "1.21.1")] | .[0].id')
-          LOADER_VERSION_ID=$(echo "$VERSIONS_JSON" | jq '[.[] | select(.name == "NeoForge")] | .[0].id')
-
-          echo "Found Minecraft 1.21.1 ID: $MC_VERSION_ID"
-          echo "Found NeoForge ID: $LOADER_VERSION_ID"
-
-          if [ "$MC_VERSION_ID" == "null" ] || [ "$LOADER_VERSION_ID" == "null" ]; then
-            echo "Error: Could not resolve version IDs from CurseForge API."
-            exit 1
-          fi
-
-          # Construct metadata with isMarkedForManualRelease: true to keep it hidden/unpublished
-          METADATA=$(jq -n \
-            --arg changelog "Release version $VERSION" \
-            --argjson mc "$MC_VERSION_ID" \
-            --argjson loader "$LOADER_VERSION_ID" \
-            '{
-              changelog: $changelog,
-              changelogType: "text",
-              releaseType: "release",
-              gameVersions: [$mc, $loader],
-              loaders: ["neoforge"],
-              isMarkedForManualRelease: true
-            }')
-
-          echo "Uploading $JAR_PATH to CurseForge project $PROJECT_ID as hidden..."
-
-          response=$(curl -s -X POST \
-            -H "X-Api-Token: $CF_API_TOKEN" \
-            -F "metadata=$METADATA;type=application/json" \
-            -F "file=@$JAR_PATH" \
-            "https://minecraft.curseforge.com/api/projects/$PROJECT_ID/upload-file")
-
-          echo "Response: $response"
-          
-          if echo "$response" | grep -q "id"; then
-            echo "Successfully uploaded to CurseForge as a hidden manual release!"
-          else
-            echo "Failed to upload to CurseForge."
-            exit 1
-          fi
+        uses: cuchi/curseforge-upload-action@v2.2.0
+        with:
+          token: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          project_id: ${{ secrets.CURSEFORGE_PROJECT_ID }}
+          file_path: ${{ steps.jar.outputs.jar }}
+          game_endpoint: minecraft
+          release_type: release
+          changelog: "Release version ${{ steps.version.outputs.version }}"
+          changelog_format: text
+          game_versions: "1.21.1, NeoForge"
+          # Keeps the file hidden / manual release mode
+          is_marked_for_manual_release: true
