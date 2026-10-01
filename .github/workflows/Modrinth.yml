@@ -54,7 +54,6 @@ jobs:
           version: ${{ steps.version.outputs.version }}
           files: ${{ steps.jar.outputs.jar }}
           loaders: |
-            forge
             neoforge
           game-versions: |
-            1.21
+            1.21.1
