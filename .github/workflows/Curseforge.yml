@@ -46,16 +46,17 @@ jobs:
           VERSION=$(grep '^mod_version=' gradle.properties | cut -d'=' -f2- | tr -d '\r')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Publish to CurseForge (Hidden)
-        uses: cuchi/curseforge-upload-action@v2.2.0
+      - name: Upload to CurseForge
+        uses: itsmeow/curseforge-upload@v3.1.2
         with:
           token: ${{ secrets.CURSEFORGE_API_TOKEN }}
           project_id: ${{ secrets.CURSEFORGE_PROJECT_ID }}
-          file_path: ${{ steps.jar.outputs.jar }}
           game_endpoint: minecraft
+          file_path: ${{ steps.jar.outputs.jar }}
           release_type: release
-          changelog: "Release version ${{ steps.version.outputs.version }}"
-          changelog_format: text
+          # Provide your game versions (separated by commas)
           game_versions: "1.21.1, NeoForge"
+          changelog: "Release version ${{ steps.version.outputs.version }}"
+          changelog_type: text
           # Keeps the file hidden / manual release mode
           is_marked_for_manual_release: true
