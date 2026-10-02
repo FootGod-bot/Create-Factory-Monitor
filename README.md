@@ -1,25 +1,11 @@
+# Create: Factory Monitor
+Adds one block with many usages. It allows you to use a threshold switch and display link to monitor how many items are in a logistics network, how many promises, lets you filter by item, and even filter promises by DESTINATION!
+This allows you to have you crushing setup off when you are not using it, and lets you have more su for other things.
+The mod also adds a fe system, and when it detects a compatible mod it will require fe to run. The fact that it needs fe, as well as the auto-detection, can be turned off.
 
-Installation information
-=======
 
-This template repository can be directly cloned to get you started with a new
-mod. Simply create a new repository cloned from this one, by following the
-instructions provided by [GitHub](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template).
-
-Once you have your clone, simply open the repository in the IDE of your choice. The usual recommendation for an IDE is either IntelliJ IDEA or Eclipse.
-
-If at any point you are missing libraries in your IDE, or you've run into problems you can
-run `gradlew --refresh-dependencies` to refresh the local cache. `gradlew clean` to reset everything 
-{this does not affect your code} and then start the process again.
-
-Mapping Names:
-============
-By default, the MDK is configured to use the official mapping names from Mojang for methods and fields 
-in the Minecraft codebase. These names are covered by a specific license. All modders should be aware of this
-license. For the latest license text, refer to the mapping file itself, or the reference copy here:
-https://github.com/NeoForged/NeoForm/blob/main/Mojang.md
-
-Additional Resources: 
-==========
-Community Documentation: https://docs.neoforged.net/  
-NeoForged Discord: https://discord.neoforged.net/
+## Plans:
+- Add support for [Create: Fluid Logistics](https://www.curseforge.com/minecraft/mc-mods/create-fluidlogistic) and maybe other fluid mods
+- Add support for [Create: Factory Controller](https://www.curseforge.com/minecraft/mc-mods/create-factory-controller), by allowing it to be placed along with other blocks for more advanced logistics systems
+- Make other factory blocks require fe to work (like the stock ticker, etc)
+- #### Ponders
