@@ -186,6 +186,7 @@ idea {
         downloadJavadoc = true
     }
 }
+
 // ========================================
 // Release Publishing
 // ========================================
@@ -224,6 +225,23 @@ def releaseDisplayName = providers.gradleProperty('release_display_name')
         .replace('${minecraft_version}', minecraft_version.toString())
         .replace('${loader}', releaseLoader)
 
+def curseForgeProjectId = providers.gradleProperty('release_curseforge_project_id')
+        .get()
+
+def modrinthProjectId = providers.gradleProperty('release_modrinth_project_id')
+        .get()
+
+def githubRepository = providers.gradleProperty('release_github_repository')
+        .get()
+
+def githubBranch = providers.gradleProperty('release_github_branch')
+        .orElse('Main')
+        .get()
+
+def releaseTagPrefix = providers.gradleProperty('release_tag_prefix')
+        .orElse('V')
+        .get()
+
 // ----------------------------------------
 // JAR filename
 // ----------------------------------------
@@ -241,7 +259,6 @@ def releaseChangelogFile = file("versions/${mod_version}/changelog.md")
 if (!releaseChangelogFile.exists()) {
     releaseChangelogFile.parentFile.mkdirs()
     releaseChangelogFile.text = "Automatic Release"
-
     println("Created changelog: ${releaseChangelogFile}")
 }
 
@@ -276,7 +293,7 @@ publishMods {
 
     curseforge {
         accessToken = cfToken
-        projectId = "1721347"
+        projectId = curseForgeProjectId
         minecraftVersions.add(minecraft_version)
 
         clientRequired = releaseEnvironment == "client" ||
@@ -292,7 +309,7 @@ publishMods {
 
     modrinth {
         accessToken = modToken
-        projectId = "iuCAyZjV"
+        projectId = modrinthProjectId
         minecraftVersions.add(minecraft_version)
 
         environment = releaseEnvironment == "client"
@@ -308,10 +325,10 @@ publishMods {
 
     github {
         accessToken = githubToken
-        repository = "FootGod-bot/Create-Factory-Monitor"
+        repository = githubRepository
 
-        commitish = "Main"
+        commitish = githubBranch
 
-        tagName = "V${mod_version}"
+        tagName = "${releaseTagPrefix}${mod_version}"
     }
 }

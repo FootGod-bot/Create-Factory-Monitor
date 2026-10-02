@@ -25,8 +25,8 @@ public final class CreateFactoryMonitorConfig {
 
         DYNAMIC_FE = builder
                 .comment(
-                        "If true, 'require_fe' will automatically update every boot based on whether Create: New Age or Create Crafts & Additions is installed.",
-                        "If false, 'require_fe' will respect manual user changes and never auto-update."
+                        "If true, 'require_fe' will automatically update on server boot based on whether Create: New Age or Create Crafts & Additions is installed.",
+                        "If false, 'require_fe' will respect manual user changes."
                 )
                 .define(
                         "dynamic_fe",
@@ -36,8 +36,7 @@ public final class CreateFactoryMonitorConfig {
         REQUIRE_FE = builder
                 .comment(
                         "If true, Factory Monitor requires FE power.",
-                        "Defaults to true when an electricity mod is installed.",
-                        "Controlled automatically if 'dynamic_fe' is true."
+                        "Defaults to true when an electricity mod is installed."
                 )
                 .define(
                         "require_fe",
@@ -71,19 +70,22 @@ public final class CreateFactoryMonitorConfig {
     }
 
     /**
-     * Call this method on ModConfigEvent.Loading and ModConfigEvent.Reloading
-     * to handle the dynamic updating behavior.
+     * Safe config load listener to prevent crashes during unloading.
      */
     public static void onConfigLoad(ModConfigEvent event) {
-        if (event.getConfig().getSpec() == SPEC) {
-            // Check if dynamic updates are enabled
-            if (DYNAMIC_FE.get()) {
-                boolean electricityModDetected = OptionalMods.hasCreateElectricityMod();
+        // Just ensures we safely handle events without running dynamic checks here
+    }
 
-                // Automatically set require_fe to match the current mod environment
-                if (REQUIRE_FE.get() != electricityModDetected) {
-                    REQUIRE_FE.set(electricityModDetected);
-                }
+    /**
+     * Call this method ONCE on server startup (e.g., ServerStartingEvent).
+     */
+    public static void performBootCheck() {
+        if (DYNAMIC_FE.get()) {
+            boolean electricityModDetected = OptionalMods.hasCreateElectricityMod();
+
+            if (REQUIRE_FE.get() != electricityModDetected) {
+                REQUIRE_FE.set(electricityModDetected);
+                SPEC.save();
             }
         }
     }

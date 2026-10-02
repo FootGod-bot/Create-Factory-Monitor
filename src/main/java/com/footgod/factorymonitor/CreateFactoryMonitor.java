@@ -15,7 +15,9 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.event.server.ServerStartingEvent;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,12 +65,18 @@ public class CreateFactoryMonitor {
                 this::registerCapabilities
         );
 
-        // Register the config and wire up the loading event listener
         CreateFactoryMonitorConfig.register(
                 modContainer
         );
+
+        // Register the config load event (safe fallback)
         modEventBus.addListener(
                 CreateFactoryMonitorConfig::onConfigLoad
+        );
+
+        // Register server starting event to run the dynamic boot check once on startup
+        NeoForge.EVENT_BUS.addListener(
+                this::onServerStarting
         );
 
         boolean newAge =
@@ -128,5 +136,12 @@ public class CreateFactoryMonitor {
         event.accept(
                 ModItems.FACTORY_MONITOR.get()
         );
+    }
+
+    private void onServerStarting(
+            ServerStartingEvent event
+    ) {
+        // Run the dynamic FE check strictly once when the server boots up
+        CreateFactoryMonitorConfig.performBootCheck();
     }
 }
