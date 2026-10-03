@@ -1,0 +1,27 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "category": "redstone",
+    "pattern": [
+      "AAA",
+      "SOB",
+      "AAA"
+    ],
+    "key": {
+        "A": {
+              "item": "create:andesite_casing"
+        },
+        "S": {
+              "item": "create:stock_link"
+        },
+        "O": {
+              "item": "create:content_observer"
+        },
+        "B": {
+              "item": "create:brass_casing"
+        }
+    },
+    "result": {
+    "id": "factorymonitor:factory_monitor",
+    "count": 1
+    }
+}
