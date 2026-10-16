@@ -11,7 +11,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-public final class ModBlocks {
+public final class FactoryMonitorBlocks {
 
     public static final DeferredRegister.Blocks BLOCKS =
             DeferredRegister.createBlocks(
@@ -29,7 +29,7 @@ public final class ModBlocks {
                             .sound(SoundType.METAL)
             );
 
-    private ModBlocks() {
+    private FactoryMonitorBlocks() {
     }
 
     public static void register(IEventBus eventBus) {

@@ -1,10 +1,10 @@
 package com.footgod.factorymonitor;
 
 import com.footgod.factorymonitor.compat.OptionalMods;
-import com.footgod.factorymonitor.registry.ModBlockEntities;
-import com.footgod.factorymonitor.registry.ModBlocks;
-import com.footgod.factorymonitor.registry.ModDisplaySources;
-import com.footgod.factorymonitor.registry.ModItems;
+import com.footgod.factorymonitor.registry.FactoryMonitorBlockEntities;
+import com.footgod.factorymonitor.registry.FactoryMonitorBlocks;
+import com.footgod.factorymonitor.registry.FactoryMonitorDisplaySources;
+import com.footgod.factorymonitor.registry.FactoryMonitorItems;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -47,13 +47,13 @@ public class CreateFactoryMonitor {
             ModContainer modContainer
     ) {
 
-        ModBlocks.register(modEventBus);
+        FactoryMonitorBlocks.register(modEventBus);
 
-        ModItems.register(modEventBus);
+        FactoryMonitorItems.register(modEventBus);
 
-        ModBlockEntities.register(modEventBus);
+        FactoryMonitorBlockEntities.register(modEventBus);
 
-        ModDisplaySources.register(
+        FactoryMonitorDisplaySources.register(
                 modEventBus
         );
 
@@ -118,7 +118,7 @@ public class CreateFactoryMonitor {
 
         event.registerBlockEntity(
                 Capabilities.ItemHandler.BLOCK,
-                ModBlockEntities.FACTORY_MONITOR.get(),
+                FactoryMonitorBlockEntities.FACTORY_MONITOR.get(),
                 (monitor, side) ->
                         monitor.getItemHandler()
         );
@@ -134,7 +134,7 @@ public class CreateFactoryMonitor {
         }
 
         event.accept(
-                ModItems.FACTORY_MONITOR.get()
+                FactoryMonitorItems.FACTORY_MONITOR.get()
         );
     }
 

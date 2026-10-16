@@ -31,26 +31,8 @@ tasks.register('pullLang') {
     group = 'localization'
     description = 'Downloads and installs the latest language files from Crowdin.'
 
+    dependsOn 'crowdinBuildProjectTranslation'
     dependsOn 'crowdinCopyProjectTranslations'
-
-    doLast {
-        def langDir = factoryMonitorLangDir.asFile
-
-        langDir.listFiles()?.each { file ->
-            if (file.isFile() && file.name.startsWith('en_us_')) {
-                def newName = file.name.substring('en_us_'.length())
-                def newFile = new File(langDir, newName)
-
-                if (newFile.exists()) {
-                    newFile.delete()
-                }
-
-                if (file.renameTo(newFile)) {
-                    println "Renamed ${file.name} -> ${newFile.name}"
-                }
-            }
-        }
-    }
 }
 
 tasks.register('pushLang') {
@@ -77,6 +59,17 @@ repositories {
     maven {
         url = "https://maven.createmod.net"
     }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
 }
 
     dependencies {
@@ -85,6 +78,10 @@ repositories {
         }
 
         implementation("net.createmod.ponder:ponder-neoforge:${ponder_version}") {
+            transitive = false
+        }
+
+        implementation("maven.modrinth:g4AWLVIr:${fluidlogistics_version}") {
             transitive = false
         }
     }

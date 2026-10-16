@@ -1,6 +1,5 @@
 package com.footgod.factorymonitor.display;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import com.footgod.factorymonitor.block.entity.FactoryMonitorBlockEntity;
@@ -11,12 +10,18 @@ import com.simibubi.create.content.redstone.displayLink.target.DisplayTargetStat
 
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-
-import net.neoforged.neoforge.items.IItemHandler;
-
 public class FactoryMonitorDisplaySource
         extends DisplaySource {
+
+    private final boolean countStacks;
+
+    public FactoryMonitorDisplaySource() {
+        this(false);
+    }
+
+    public FactoryMonitorDisplaySource(boolean countStacks) {
+        this.countStacks = countStacks;
+    }
 
     @Override
     public List<MutableComponent> provideText(
@@ -33,29 +38,7 @@ public class FactoryMonitorDisplaySource
             return List.of(Component.literal("0"));
         }
 
-        IItemHandler handler =
-                monitor.getItemHandler();
-
-        if (handler == null) {
-            return List.of(Component.literal("0"));
-        }
-
-        long total = 0;
-
-        for (int slot = 0;
-             slot < handler.getSlots();
-             slot++) {
-
-            ItemStack stack =
-                    handler.getStackInSlot(slot);
-
-            if (stack.isEmpty() ||
-                    stack.getCount() <= 0) {
-                continue;
-            }
-
-            total += stack.getCount();
-        }
+        long total = monitor.getDisplayCount(countStacks);
 
         return List.of(
                 Component.literal(

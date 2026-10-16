@@ -1,6 +1,6 @@
 package com.footgod.factorymonitor;
 
-import com.footgod.factorymonitor.registry.ModBlockEntities;
+import com.footgod.factorymonitor.registry.FactoryMonitorBlockEntities;
 
 import com.simibubi.create.foundation.blockEntity.renderer.SmartBlockEntityRenderer;
 
@@ -27,7 +27,7 @@ public class CreateFactoryMonitorClient {
     ) {
 
         event.registerBlockEntityRenderer(
-                ModBlockEntities.FACTORY_MONITOR.get(),
+                FactoryMonitorBlockEntities.FACTORY_MONITOR.get(),
                 SmartBlockEntityRenderer::new
         );
     }

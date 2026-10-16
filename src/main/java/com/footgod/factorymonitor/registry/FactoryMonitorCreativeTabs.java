@@ -8,7 +8,7 @@ import net.minecraft.world.item.CreativeModeTab;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-public final class ModCreativeTabs {
+public final class FactoryMonitorCreativeTabs {
 
     public static final DeferredRegister<CreativeModeTab> TABS =
             DeferredRegister.create(
@@ -24,7 +24,7 @@ public final class ModCreativeTabs {
      * a one-item Factory Monitor tab.
      */
 
-    private ModCreativeTabs() {
+    private FactoryMonitorCreativeTabs() {
     }
 
     public static void register() {

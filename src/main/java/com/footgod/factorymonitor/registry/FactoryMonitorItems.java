@@ -8,7 +8,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-public final class ModItems {
+public final class FactoryMonitorItems {
 
     public static final DeferredRegister.Items ITEMS =
             DeferredRegister.createItems(
@@ -20,12 +20,12 @@ public final class ModItems {
             ITEMS.register(
                     "factory_monitor",
                     () -> new LogisticallyLinkedBlockItem(
-                            ModBlocks.FACTORY_MONITOR.get(),
+                            FactoryMonitorBlocks.FACTORY_MONITOR.get(),
                             new net.minecraft.world.item.Item.Properties()
                     )
             );
 
-    private ModItems() {}
+    private FactoryMonitorItems() {}
 
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);
