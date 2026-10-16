@@ -1,12 +1,16 @@
 package com.footgod.factorymonitor.block.entity;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.footgod.factorymonitor.CreateFactoryMonitor;
 import com.footgod.factorymonitor.CreateFactoryMonitorConfig;
+import com.footgod.factorymonitor.compat.FluidLogisticsCompat;
+import com.footgod.factorymonitor.compat.ResourceMode;
 import com.footgod.factorymonitor.logistics.FactoryMonitorPromiseTracker;
-import com.footgod.factorymonitor.registry.ModBlockEntities;
+import com.footgod.factorymonitor.registry.FactoryMonitorBlockEntities;
 
 import com.google.common.collect.ImmutableList;
 import com.simibubi.create.Create;
@@ -14,6 +18,9 @@ import com.simibubi.create.content.logistics.BigItemStack;
 import com.simibubi.create.content.logistics.box.PackageItem;
 import com.simibubi.create.content.logistics.filter.PackageFilterItem;
 import com.simibubi.create.content.logistics.packager.InventorySummary;
+import com.simibubi.create.content.logistics.packager.IdentifiedInventory;
+import com.simibubi.create.content.logistics.packager.PackagerBlockEntity;
+import com.simibubi.create.content.logistics.packagerLink.PackagerLinkBlockEntity;
 import com.simibubi.create.content.logistics.packagerLink.LogisticallyLinkedBehaviour;
 import com.simibubi.create.content.logistics.packagerLink.LogisticsManager;
 import com.simibubi.create.content.logistics.packagerLink.RequestPromise;
@@ -35,6 +42,7 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -53,6 +61,9 @@ import net.neoforged.neoforge.items.IItemHandler;
 public class FactoryMonitorBlockEntity extends SmartBlockEntity
         implements ThresholdSwitchObservable {
 
+    private static final long MAX_MONITOR_COUNT =
+            Integer.MAX_VALUE - 1L;
+
     public enum MonitorMode {
         STORED,
         PROMISED,
@@ -60,6 +71,8 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
     }
 
     private MonitorMode mode;
+
+    private ResourceMode resourceMode;
 
     private LogisticallyLinkedBehaviour logisticsBehaviour;
     private FilteringBehaviour filtering;
@@ -88,12 +101,6 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
     private boolean previousRequireFE;
 
-    /**
-     * Registers ONLY the FE capability.
-     *
-     * The item handler capability is still registered by
-     * CreateFactoryMonitor.java.
-     */
     @SubscribeEvent
     public static void registerCapabilities(
             RegisterCapabilitiesEvent event
@@ -101,13 +108,9 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
         event.registerBlockEntity(
                 Capabilities.EnergyStorage.BLOCK,
-                ModBlockEntities.FACTORY_MONITOR.get(),
+                FactoryMonitorBlockEntities.FACTORY_MONITOR.get(),
                 (monitor, side) -> {
 
-                    /*
-                     * When require_fe is disabled, the Factory Monitor
-                     * does not expose an FE capability at all.
-                     */
                     if (!CreateFactoryMonitorConfig.REQUIRE_FE.get()) {
                         return null;
                     }
@@ -121,13 +124,18 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             BlockPos pos,
             BlockState state
     ) {
+
         super(
-                ModBlockEntities.FACTORY_MONITOR.get(),
+                FactoryMonitorBlockEntities.FACTORY_MONITOR.get(),
                 pos,
                 state
         );
 
-        mode = MonitorMode.STORED;
+        mode =
+                MonitorMode.STORED;
+
+        resourceMode =
+                ResourceMode.ITEMS;
 
         itemHandler =
                 new MonitorItemHandler(this);
@@ -145,6 +153,18 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                         this,
                         new MonitorFilterSlot()
                 ).withCallback(stack -> {
+
+                    /*
+                     * A filled bucket automatically switches
+                     * the monitor to FLUIDS.
+                     */
+                    if (FluidLogisticsCompat.isAvailable()
+                            && FluidLogisticsCompat.isFilledBucket(stack)) {
+
+                        setResourceMode(
+                                ResourceMode.FLUIDS
+                        );
+                    }
 
                     itemHandler.invalidate();
 
@@ -224,6 +244,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
             if (value < 0 ||
                     value >= modes.length) {
+
                 return;
             }
 
@@ -384,6 +405,123 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
     /*
      * ============================================================
+     * RESOURCE MODE
+     * ============================================================
+     */
+
+    public ResourceMode getResourceMode() {
+
+        if (resourceMode == null) {
+            resourceMode =
+                    ResourceMode.ITEMS;
+        }
+
+        /*
+         * Never allow FLUIDS when Fluid Logistics is unavailable.
+         */
+        if (resourceMode == ResourceMode.FLUIDS
+                && !FluidLogisticsCompat.isAvailable()) {
+
+            resourceMode =
+                    ResourceMode.ITEMS;
+        }
+
+        return resourceMode;
+    }
+
+    public boolean isFluidMode() {
+
+        return getResourceMode()
+                == ResourceMode.FLUIDS;
+    }
+
+    public void setResourceMode(
+            ResourceMode newMode
+    ) {
+
+        if (newMode == null) {
+            newMode =
+                    ResourceMode.ITEMS;
+        }
+
+        if (newMode == ResourceMode.FLUIDS
+                && !FluidLogisticsCompat.isAvailable()) {
+
+            newMode =
+                    ResourceMode.ITEMS;
+        }
+
+        if (resourceMode == newMode) {
+            return;
+        }
+
+        resourceMode =
+                newMode;
+
+        itemHandler.invalidate();
+
+        setChanged();
+
+        if (level != null &&
+                !level.isClientSide) {
+
+            sendData();
+        }
+    }
+
+    /**
+     * Toggles the resource mode and tells the player which
+     * resource type the monitor is now displaying.
+     */
+    public void toggleResourceMode(
+            ServerPlayer player
+    ) {
+
+        if (!FluidLogisticsCompat.isAvailable()) {
+
+            setResourceMode(
+                    ResourceMode.ITEMS
+            );
+
+            player.displayClientMessage(
+                    Component.translatable(
+                            "factorymonitor.alert.mode.items"
+                    ),
+                    true
+            );
+
+            return;
+        }
+
+        ResourceMode newMode;
+
+        if (isFluidMode()) {
+
+            newMode =
+                    ResourceMode.ITEMS;
+
+        } else {
+
+            newMode =
+                    ResourceMode.FLUIDS;
+        }
+
+        setResourceMode(
+                newMode
+        );
+
+        player.displayClientMessage(
+                Component.translatable(
+                        newMode == ResourceMode.FLUIDS
+                                ? "factorymonitor.alert.mode.fluids"
+                                : "factorymonitor.alert.mode.items"
+                ),
+                true
+        );
+    }
+
+    /*
+     * ============================================================
      * FE POWER HELPERS
      * ============================================================
      */
@@ -392,13 +530,6 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         return CreateFactoryMonitorConfig.REQUIRE_FE.get();
     }
 
-    /**
-     * Returns true when the monitor is allowed to provide data.
-     *
-     * If FE is disabled in the config, the monitor always works.
-     *
-     * If FE is enabled, it must have enough FE for the next tick.
-     */
     private boolean hasPower() {
 
         if (!requiresFE()) {
@@ -415,9 +546,6 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         return energyStorage.getEnergyStored() >= cost;
     }
 
-    /**
-     * Consumes FE for one active tick.
-     */
     private void consumePower() {
 
         if (!requiresFE()) {
@@ -461,10 +589,6 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         boolean requireFE =
                 requiresFE();
 
-        /*
-         * If the config changes while the world is running,
-         * invalidate the capabilities and virtual inventory.
-         */
         if (previousRequireFE != requireFE) {
 
             previousRequireFE =
@@ -485,9 +609,6 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             return;
         }
 
-        /*
-         * Only consume FE when the monitor actually requires it.
-         */
         if (requireFE &&
                 hasPower()) {
 
@@ -499,7 +620,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
     /*
      * ============================================================
-     * Create Threshold Switch integration
+     * CREATE THRESHOLD SWITCH
      * ============================================================
      */
 
@@ -516,13 +637,37 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
     @Override
     public int getCurrentValue() {
 
-        /*
-         * No FE = no monitor data.
-         */
         if (!hasPower()) {
             return 0;
         }
 
+        /*
+         * FLUIDS:
+         *
+         * Count the actual millibuckets represented by the
+         * Fluid Logistics resources.
+         */
+        if (isFluidMode()) {
+
+            InventorySummary exposed =
+                    getExposedSummary();
+
+            long total =
+                    FluidLogisticsCompat.getTotalAmount(
+                            exposed.getStacks()
+                    );
+
+            return (int) Math.min(
+                    total,
+                    MAX_MONITOR_COUNT
+            );
+        }
+
+        /*
+         * ITEMS:
+         *
+         * Count normal item quantities.
+         */
         long total = 0;
 
         for (ItemStack stack :
@@ -537,10 +682,9 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             total +=
                     stack.getCount();
 
-            if (total >=
-                    Integer.MAX_VALUE - 1) {
+            if (total >= MAX_MONITOR_COUNT) {
 
-                return Integer.MAX_VALUE - 1;
+                return (int) MAX_MONITOR_COUNT;
             }
         }
 
@@ -550,14 +694,11 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
     @Override
     public int getMaxValue() {
 
-        /*
-         * No FE = 0 max.
-         */
         if (!hasPower()) {
             return 0;
         }
 
-        return Integer.MAX_VALUE - 1;
+        return (int) MAX_MONITOR_COUNT;
     }
 
     @Override
@@ -576,9 +717,6 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
     public InventorySummary getRecentNetworkSummary() {
 
-        /*
-         * No FE = no Display Link data.
-         */
         if (!hasPower()) {
             return InventorySummary.EMPTY;
         }
@@ -587,17 +725,16 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             return InventorySummary.EMPTY;
         }
 
-        return LogisticsManager.getSummaryOfNetwork(
-                logisticsBehaviour.freqId,
-                false
+        return getResourceFilteredSummary(
+                LogisticsManager.getSummaryOfNetwork(
+                        logisticsBehaviour.freqId,
+                        false
+                )
         );
     }
 
     public InventorySummary getAccurateNetworkSummary() {
 
-        /*
-         * No FE = no Display Link data.
-         */
         if (!hasPower()) {
             return InventorySummary.EMPTY;
         }
@@ -606,10 +743,79 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             return InventorySummary.EMPTY;
         }
 
-        return LogisticsManager.getSummaryOfNetwork(
-                logisticsBehaviour.freqId,
-                true
+        return getResourceFilteredSummary(
+                LogisticsManager.getSummaryOfNetwork(
+                        logisticsBehaviour.freqId,
+                        true
+                )
         );
+    }
+
+    /**
+     * Absolutely prevents item resources from entering the
+     * exposed summary while in FLUIDS mode.
+     */
+    private InventorySummary getResourceFilteredSummary(
+            InventorySummary source
+    ) {
+
+        if (source == null ||
+                source.isEmpty()) {
+
+            return new InventorySummary();
+        }
+
+        InventorySummary result =
+                new InventorySummary();
+
+        for (BigItemStack entry :
+                source.getStacks()) {
+
+            if (entry == null ||
+                    entry.stack == null ||
+                    entry.stack.isEmpty() ||
+                    entry.count <= 0) {
+
+                continue;
+            }
+
+            if (isFluidMode()) {
+
+                /*
+                 * FLUID MODE:
+                 *
+                 * Only Fluid Logistics resources are allowed.
+                 * Normal Minecraft/Create items are discarded.
+                 */
+                if (!FluidLogisticsCompat.isFluidResource(
+                        entry.stack
+                )) {
+
+                    continue;
+                }
+
+            } else {
+
+                /*
+                 * ITEM MODE:
+                 *
+                 * Fluid Logistics resources are discarded.
+                 */
+                if (FluidLogisticsCompat.isFluidResource(
+                        entry.stack
+                )) {
+
+                    continue;
+                }
+            }
+
+            result.add(
+                    entry.stack,
+                    entry.count
+            );
+        }
+
+        return result;
     }
 
     private RequestPromiseQueue getPromiseQueue() {
@@ -643,6 +849,28 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 promise.promisedStack.count <= 0) {
 
             return;
+        }
+
+        /*
+         * Resource type is checked BEFORE the filter.
+         */
+        if (isFluidMode()) {
+
+            if (!FluidLogisticsCompat.isFluidResource(
+                    promise.promisedStack.stack
+            )) {
+
+                return;
+            }
+
+        } else {
+
+            if (FluidLogisticsCompat.isFluidResource(
+                    promise.promisedStack.stack
+            )) {
+
+                return;
+            }
         }
 
         if (!passesFilter(promise)) {
@@ -696,6 +924,25 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             );
         }
 
+        /*
+         * Fluid mode + filled bucket =
+         * match the fluid represented by the bucket.
+         */
+        if (isFluidMode()) {
+
+            if (!FluidLogisticsCompat.isFilledBucket(
+                    filterStack
+            )) {
+
+                return false;
+            }
+
+            return FluidLogisticsCompat.matchesBucket(
+                    promise.promisedStack.stack,
+                    filterStack
+            );
+        }
+
         return filtering.test(
                 promise.promisedStack.stack
         );
@@ -729,18 +976,22 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         return summary;
     }
 
-    public List<ItemStack> getExposedItems() {
+    private InventorySummary getExposedSummary() {
 
-        /*
-         * This is the main protection for the virtual inventory.
-         */
         if (!hasPower()) {
-            return List.of();
+            return new InventorySummary();
         }
 
+        /*
+         * getAccurateNetworkSummary() is already resource-filtered.
+         */
         InventorySummary stored =
                 getAccurateNetworkSummary();
 
+        /*
+         * Promises are already resource-filtered by
+         * addPromisedItem().
+         */
         InventorySummary promised =
                 getPromisedNetworkSummary();
 
@@ -779,14 +1030,221 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             }
         }
 
+        /*
+         * Final safety pass.
+         *
+         * This guarantees that NOTHING of the wrong resource
+         * type can reach the virtual inventory or threshold
+         * switch, regardless of where the summary came from.
+         */
+        return getResourceFilteredSummary(
+                exposed
+        );
+    }
+
+    /**
+     * Returns the total resource quantity or the number of
+     * inventory stacks needed to represent it, without expanding
+     * large quantities into a virtual item handler.
+     */
+    public long getDisplayCount(boolean countStacks) {
+        if (!hasPower()) {
+            return 0;
+        }
+
+        List<DisplayItemCount> counts = new ArrayList<>();
+
+        if (getMode() != MonitorMode.PROMISED) {
+            addStoredDisplayCounts(counts);
+        }
+
+        if (getMode() != MonitorMode.STORED) {
+            addPromisedDisplayCounts(counts);
+        }
+
+        long total = 0;
+
+        for (DisplayItemCount entry : counts) {
+            long amount = entry.count;
+            if (countStacks) {
+                int maxStackSize = entry.stack.getMaxStackSize();
+                if (maxStackSize <= 0) {
+                    maxStackSize = 64;
+                }
+                amount = 1 + (amount - 1) / maxStackSize;
+            }
+
+            if (Long.MAX_VALUE - total < amount) {
+                return Long.MAX_VALUE;
+            }
+            total += amount;
+        }
+
+        return Math.min(total, MAX_MONITOR_COUNT);
+    }
+
+    private void addStoredDisplayCounts(
+            List<DisplayItemCount> counts
+    ) {
+        if (logisticsBehaviour == null || isPackageFilter()) {
+            return;
+        }
+
+        ItemStack filterStack = filtering == null
+                ? ItemStack.EMPTY
+                : filtering.getFilter();
+        Set<com.simibubi.create.api.packager.InventoryIdentifier>
+                seenInventories = new HashSet<>();
+
+        for (LogisticallyLinkedBehaviour link :
+                LogisticallyLinkedBehaviour.getAllPresent(
+                        logisticsBehaviour.freqId,
+                        false
+                )) {
+            if (link.blockEntity instanceof PackagerLinkBlockEntity linkBlock) {
+                PackagerBlockEntity packager = linkBlock.getPackager();
+                if (packager != null
+                        && packager.targetInventory.hasInventory()) {
+                    IdentifiedInventory inventory =
+                            packager.targetInventory.getIdentifiedInventory();
+                    if (inventory != null
+                            && inventory.identifier() != null
+                            && !seenInventories.add(inventory.identifier())) {
+                        continue;
+                    }
+                }
+            }
+
+            InventorySummary summary = link.getSummary(null);
+            if (summary == null || summary.isEmpty()) {
+                continue;
+            }
+
+            for (BigItemStack entry : summary.getStacks()) {
+                if (entry == null || entry.stack == null
+                        || entry.stack.isEmpty() || entry.count <= 0
+                        || FluidLogisticsCompat.isFluidResource(entry.stack)
+                                != isFluidMode()) {
+                    continue;
+                }
+
+                if (isFluidMode()) {
+                    if (!filterStack.isEmpty()
+                            && (!FluidLogisticsCompat.isFilledBucket(filterStack)
+                            || !FluidLogisticsCompat.matchesBucket(
+                                    entry.stack, filterStack))) {
+                        continue;
+                    }
+                } else if (!filterStack.isEmpty()
+                        && filtering != null
+                        && !filtering.test(entry.stack)) {
+                    continue;
+                }
+
+                addDisplayItemCount(counts, entry.stack, entry.count);
+            }
+        }
+    }
+
+    private void addPromisedDisplayCounts(
+            List<DisplayItemCount> counts
+    ) {
+        RequestPromiseQueue promises = getPromiseQueue();
+        if (promises == null) {
+            return;
+        }
+
+        for (RequestPromise promise : promises.flatten(false)) {
+            if (promise == null || promise.promisedStack == null
+                    || promise.promisedStack.stack == null
+                    || promise.promisedStack.count <= 0
+                    || !passesFilter(promise)) {
+                continue;
+            }
+
+            addDisplayItemCount(
+                    counts,
+                    promise.promisedStack.stack,
+                    promise.promisedStack.count
+            );
+        }
+    }
+
+    private static void addDisplayItemCount(
+            List<DisplayItemCount> counts,
+            ItemStack stack,
+            long amount
+    ) {
+        for (DisplayItemCount existing : counts) {
+            if (ItemStack.isSameItemSameComponents(existing.stack, stack)) {
+                existing.count = Long.MAX_VALUE - existing.count < amount
+                        ? Long.MAX_VALUE
+                        : existing.count + amount;
+                return;
+            }
+        }
+
+        counts.add(new DisplayItemCount(stack.copy(), amount));
+    }
+
+    private static class DisplayItemCount {
+        private final ItemStack stack;
+        private long count;
+
+        private DisplayItemCount(ItemStack stack, long count) {
+            this.stack = stack;
+            this.count = count;
+        }
+    }
+
+    public List<ItemStack> getExposedItems() {
+
+        if (!hasPower()) {
+            return List.of();
+        }
+
+        InventorySummary exposed =
+                getExposedSummary();
+
+        /*
+         * FLUID MODE:
+         *
+         * Only Fluid Logistics carriers are converted into
+         * virtual inventory stacks.
+         */
+        if (isFluidMode()) {
+
+            return FluidLogisticsCompat.createVirtualStacks(
+                    exposed.getStacks()
+            );
+        }
+
+        /*
+         * ITEM MODE:
+         *
+         * Only normal item resources reach this point.
+         */
         List<ItemStack> result =
                 new ArrayList<>();
 
         for (BigItemStack entry :
                 exposed.getStacks()) {
 
-            if (entry.stack.isEmpty() ||
+            if (entry == null ||
+                    entry.stack == null ||
+                    entry.stack.isEmpty() ||
                     entry.count <= 0) {
+
+                continue;
+            }
+
+            /*
+             * Extra safety: never expose a Fluid Logistics
+             * resource as an ordinary item.
+             */
+            if (FluidLogisticsCompat.isFluidResource(
+                    entry.stack
+            )) {
 
                 continue;
             }
@@ -814,7 +1272,9 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
 
                 stack.setCount(amount);
 
-                result.add(stack);
+                result.add(
+                        stack
+                );
 
                 remaining -= amount;
             }
@@ -837,10 +1297,34 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         for (BigItemStack entry :
                 source.getStacks()) {
 
-            if (entry.stack.isEmpty() ||
+            if (entry == null ||
+                    entry.stack == null ||
+                    entry.stack.isEmpty() ||
                     entry.count <= 0) {
 
                 continue;
+            }
+
+            /*
+             * Strict resource separation.
+             */
+            if (isFluidMode()) {
+
+                if (!FluidLogisticsCompat.isFluidResource(
+                        entry.stack
+                )) {
+
+                    continue;
+                }
+
+            } else {
+
+                if (FluidLogisticsCompat.isFluidResource(
+                        entry.stack
+                )) {
+
+                    continue;
+                }
             }
 
             destination.add(
@@ -861,20 +1345,103 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             return;
         }
 
+        /*
+         * Package Filters don't apply to stored inventory.
+         */
         if (isPackageFilter()) {
             return;
         }
 
+        ItemStack filterStack =
+                filtering == null
+                        ? ItemStack.EMPTY
+                        : filtering.getFilter();
+
         for (BigItemStack entry :
                 source.getStacks()) {
 
-            if (entry.stack.isEmpty()) {
+            if (entry == null ||
+                    entry.stack == null ||
+                    entry.stack.isEmpty() ||
+                    entry.count <= 0) {
+
                 continue;
             }
 
-            if (filtering != null &&
-                    !filtering.getFilter().isEmpty() &&
-                    !filtering.test(entry.stack)) {
+            /*
+             * STRICT RESOURCE SEPARATION
+             */
+            if (isFluidMode()) {
+
+                if (!FluidLogisticsCompat.isFluidResource(
+                        entry.stack
+                )) {
+
+                    continue;
+                }
+
+            } else {
+
+                if (FluidLogisticsCompat.isFluidResource(
+                        entry.stack
+                )) {
+
+                    continue;
+                }
+            }
+
+            /*
+             * Fluid mode.
+             */
+            if (isFluidMode()) {
+
+                /*
+                 * Empty filter = all fluids.
+                 */
+                if (filterStack.isEmpty()) {
+
+                    destination.add(
+                            entry.stack,
+                            entry.count
+                    );
+
+                    continue;
+                }
+
+                /*
+                 * Non-empty filter MUST be a filled bucket.
+                 */
+                if (!FluidLogisticsCompat.isFilledBucket(
+                        filterStack
+                )) {
+
+                    continue;
+                }
+
+                if (!FluidLogisticsCompat.matchesBucket(
+                        entry.stack,
+                        filterStack
+                )) {
+
+                    continue;
+                }
+
+                destination.add(
+                        entry.stack,
+                        entry.count
+                );
+
+                continue;
+            }
+
+            /*
+             * Normal item mode.
+             */
+            if (!filterStack.isEmpty()
+                    && filtering != null
+                    && !filtering.test(
+                    entry.stack
+            )) {
 
                 continue;
             }
@@ -935,10 +1502,13 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 getMode().name()
         );
 
-        /*
-         * Save FE so the monitor doesn't lose its stored power
-         * when the chunk unloads.
-         */
+        tag.putString(
+                "ResourceMode",
+                resourceMode == null
+                        ? ResourceMode.ITEMS.name()
+                        : resourceMode.name()
+        );
+
         tag.putInt(
                 "Energy",
                 energyStorage.getEnergyStored()
@@ -979,6 +1549,40 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                     MonitorMode.STORED;
         }
 
+        String resourceModeName =
+                tag.getString(
+                        "ResourceMode"
+                );
+
+        try {
+
+            resourceMode =
+                    ResourceMode.valueOf(
+                            resourceModeName
+                    );
+
+        } catch (IllegalArgumentException exception) {
+
+            resourceMode =
+                    ResourceMode.ITEMS;
+        }
+
+        if (resourceMode == null) {
+            resourceMode =
+                    ResourceMode.ITEMS;
+        }
+
+        /*
+         * Don't allow a saved FLUIDS state to remain active
+         * if Fluid Logistics is no longer installed.
+         */
+        if (resourceMode == ResourceMode.FLUIDS
+                && !FluidLogisticsCompat.isAvailable()) {
+
+            resourceMode =
+                    ResourceMode.ITEMS;
+        }
+
         energyStorage.setEnergy(
                 tag.getInt("Energy")
         );
@@ -1004,6 +1608,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         private MonitorItemHandler(
                 FactoryMonitorBlockEntity monitor
         ) {
+
             this.monitor =
                     monitor;
         }
@@ -1014,9 +1619,6 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 return;
             }
 
-            /*
-             * No FE = zero virtual inventory.
-             */
             if (!monitor.hasPower()) {
 
                 snapshot =
@@ -1071,6 +1673,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 ItemStack stack,
                 boolean simulate
         ) {
+
             return stack.copy();
         }
 
@@ -1080,6 +1683,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 int amount,
                 boolean simulate
         ) {
+
             return ItemStack.EMPTY;
         }
 
@@ -1106,13 +1710,11 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 int slot,
                 ItemStack stack
         ) {
+
             return false;
         }
     }
 
-    /**
-     * Custom EnergyStorage so NBT loading can restore FE directly.
-     */
     private static class MonitorEnergyStorage
             extends EnergyStorage {
 
@@ -1121,6 +1723,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 int maxReceive,
                 int maxExtract
         ) {
+
             super(
                     capacity,
                     maxReceive,
@@ -1134,9 +1737,6 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 boolean simulate
         ) {
 
-            /*
-             * Absolutely refuse FE when require_fe is disabled.
-             */
             if (!CreateFactoryMonitorConfig
                     .REQUIRE_FE
                     .get()) {
@@ -1262,6 +1862,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
         private MonitorModeSlot(
                 Direction side
         ) {
+
             this.direction =
                     side;
         }
@@ -1281,6 +1882,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 BlockState state,
                 Direction side
         ) {
+
             return side.getAxis().isHorizontal();
         }
     }
@@ -1289,6 +1891,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
             extends ValueBoxTransform.Sided {
 
         private MonitorFilterSlot() {
+
             this.direction =
                     Direction.UP;
         }
@@ -1308,6 +1911,7 @@ public class FactoryMonitorBlockEntity extends SmartBlockEntity
                 BlockState state,
                 Direction side
         ) {
+
             return side == Direction.UP;
         }
     }

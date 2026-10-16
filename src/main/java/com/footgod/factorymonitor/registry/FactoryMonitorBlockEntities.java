@@ -9,7 +9,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.DeferredHolder;
 
-public final class ModBlockEntities {
+public final class FactoryMonitorBlockEntities {
 
     public static final DeferredRegister<BlockEntityType<?>>
             BLOCK_ENTITY_TYPES =
@@ -26,11 +26,11 @@ public final class ModBlockEntities {
                     "factory_monitor",
                     () -> BlockEntityType.Builder.of(
                             FactoryMonitorBlockEntity::new,
-                            ModBlocks.FACTORY_MONITOR.get()
+                            FactoryMonitorBlocks.FACTORY_MONITOR.get()
                     ).build(null)
             );
 
-    private ModBlockEntities() {
+    private FactoryMonitorBlockEntities() {
     }
 
     public static void register(IEventBus eventBus) {
