@@ -1,0 +1,12 @@
+{
+  "block.factorymonitor.factory_monitor": "Seguidor de Fábrica",
+  "item.factorymonitor.factory_monitor": "Seguidor de Fábrica",
+  "factorymonitor.filter": "Filtro",
+  "factorymonitor.display_source.factory_monitor": "Valores de seguimiento de fábrica",
+  "factorymonitor.mode.stored": "Almacenado",
+  "factorymonitor.mode.promised": "Prometido",
+  "factorymonitor.mode.total": "Total",
+  "factorymonitor.mode": "Modo",
+  "factorymonitor.alert.mode.items": "Monitor de fábrica: Artículos",
+  "factorymonitor.alert.mode.fluids": "Monitor de fábrica: Fluidos"
+}
